@@ -1,0 +1,39 @@
+appId: com.webrajya.pos
+productName: WebRajya POS
+copyright: Copyright © 2026 InfoWebRajya
+
+directories:
+  output: dist
+  buildResources: build
+
+files:
+  - "electron/**/*"
+  - "package.json"
+  - "out/**/*"
+
+mac:
+  category: public.app-category.business
+  target:
+    - target: dmg
+      arch:
+        - x64
+        - arm64
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: WebRajya POS
+
+linux:
+  target:
+    - AppImage
+    - deb
+  category: Office
