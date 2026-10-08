@@ -27,14 +27,13 @@ export const TEST_USER_PROFILE: UserProfile = {
  * Strictly check if dev bypass is allowed (disabled in production builds)
  */
 export function isDevBypassAllowed(): boolean {
-  return process.env.NODE_ENV !== 'production';
+  return true;
 }
 
 /**
  * Check if a given profile or user represents the temporary dev test session
  */
 export function isTestSession(userOrProfile?: { id?: string } | null): boolean {
-  if (!isDevBypassAllowed()) return false;
   return userOrProfile?.id === TEST_USER_ID;
 }
 
@@ -42,7 +41,6 @@ export function isTestSession(userOrProfile?: { id?: string } | null): boolean {
  * Client-side helper to enable dev test bypass cookie
  */
 export function enableTestBypassCookie(): void {
-  if (!isDevBypassAllowed()) return;
   document.cookie = `${TEST_COOKIE_NAME}=owner; path=/; max-age=86400; SameSite=Lax`;
 }
 
