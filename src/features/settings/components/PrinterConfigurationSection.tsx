@@ -240,23 +240,9 @@ export function PrinterConfigurationSection({ canEdit }: PrinterConfigurationSec
 
         {/* Electron Native Mode Banner */}
         {typeof window !== 'undefined' && window.electronAPI && (
-          <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-lg text-indigo-900 text-xs font-bold flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
-              <span>⚡ Native Electron Desktop Mode Active — Direct Silent Thermal Printing & Cash Drawer Enabled</span>
-            </div>
-            <button
-              type="button"
-              onClick={async () => {
-                if (window.electronAPI) {
-                  const res = await window.electronAPI.openCashDrawer();
-                  alert(res.message || 'Cash drawer trigger sent!');
-                }
-              }}
-              className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-[11px] font-bold cursor-pointer transition shadow-2xs"
-            >
-              💵 Test Cash Drawer Kickout
-            </button>
+          <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-lg text-indigo-900 text-xs font-bold flex items-center space-x-2">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping shrink-0"></span>
+            <span>⚡ Native Electron Desktop Mode Active — Direct Silent Thermal & KOT Printing Enabled</span>
           </div>
         )}
 
