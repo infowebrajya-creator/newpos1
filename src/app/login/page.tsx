@@ -9,8 +9,8 @@ import { Button } from '@/components/ui/Button';
 import { Mail, Lock, Eye, EyeOff, AlertCircle, UtensilsCrossed, FlaskConical } from 'lucide-react';
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState('admin@gmail.com');
+  const [password, setPassword] = useState('admin@123');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);

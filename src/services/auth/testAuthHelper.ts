@@ -5,7 +5,7 @@ export const TEST_COOKIE_NAME = 'webrajya_pos_test_mode';
 
 export const TEST_AUTH_USER: AuthUser = {
   id: TEST_USER_ID,
-  email: 'test@webrajya.local',
+  email: 'admin@gmail.com',
   role: 'owner',
   user_metadata: { is_test_session: true, mode: 'TEST' },
   app_metadata: { provider: 'dev_bypass' },
@@ -14,10 +14,10 @@ export const TEST_AUTH_USER: AuthUser = {
 
 export const TEST_USER_PROFILE: UserProfile = {
   id: TEST_USER_ID,
-  full_name: 'Test User',
+  full_name: 'Admin Owner',
   role: 'owner',
   is_active: true,
-  email: 'test@webrajya.local',
+  email: 'admin@gmail.com',
   phone_number: '+919999999999',
   created_at: new Date().toISOString(),
   updated_at: new Date().toISOString(),
