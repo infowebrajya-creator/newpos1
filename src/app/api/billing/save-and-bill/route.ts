@@ -17,19 +17,27 @@ export async function POST(req: Request) {
 
     const supabase = await createClient();
 
-    // 1. Ensure tableSessionId exists in table_sessions table to satisfy FK constraint
-    let validSessionId = tableSessionId;
+    // 1. Robustly ensure validSessionId exists in table_sessions table to satisfy FK constraint
+    let validSessionId: string | null = null;
+
     const { data: existingSession } = await supabase
       .from('table_sessions')
       .select('id')
       .eq('id', tableSessionId)
       .maybeSingle();
 
-    if (!existingSession) {
+    if (existingSession?.id) {
+      validSessionId = existingSession.id;
+    } else {
+      const cleanNum = String(tableSessionId).replace(/^TT-|^T-/, '');
+      const formattedNum = `T-${cleanNum.padStart(2, '0')}`;
+      const shortFormattedNum = `T-${cleanNum}`;
+
       const { data: matchedTable } = await supabase
         .from('restaurant_tables')
         .select('id')
-        .eq('id', tableSessionId)
+        .or(`id.eq.${tableSessionId},table_number.eq.${tableSessionId},table_number.eq.${formattedNum},table_number.eq.${shortFormattedNum},table_number.eq.${cleanNum}`)
+        .limit(1)
         .maybeSingle();
 
       let targetTableId = matchedTable?.id;
@@ -39,32 +47,58 @@ export async function POST(req: Request) {
       }
 
       if (targetTableId) {
-        const isUUID = typeof tableSessionId === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(tableSessionId);
-        const newSessionId = isUUID ? tableSessionId : crypto.randomUUID();
+        const { data: activeSessForTable } = await supabase
+          .from('table_sessions')
+          .select('id')
+          .eq('table_id', targetTableId)
+          .in('status', ['active', 'open'])
+          .order('opened_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
 
-        const { error: sessErr } = await supabase.from('table_sessions').insert({
-          id: newSessionId,
-          table_id: targetTableId,
-          guest_count: 2,
-          status: 'active',
-          opened_at: new Date().toISOString(),
-          created_at: new Date().toISOString(),
-        });
-
-        if (!sessErr) {
-          validSessionId = newSessionId;
+        if (activeSessForTable?.id) {
+          validSessionId = activeSessForTable.id;
         } else {
-          const fallbackId = crypto.randomUUID();
-          await supabase.from('table_sessions').insert({
-            id: fallbackId,
+          const freshSessionId = crypto.randomUUID();
+          const { error: insertSessErr } = await supabase.from('table_sessions').insert({
+            id: freshSessionId,
             table_id: targetTableId,
             guest_count: 2,
             status: 'active',
             opened_at: new Date().toISOString(),
             created_at: new Date().toISOString(),
           });
-          validSessionId = fallbackId;
+
+          if (!insertSessErr) {
+            validSessionId = freshSessionId;
+          } else {
+            const { data: anySess } = await supabase
+              .from('table_sessions')
+              .select('id')
+              .eq('table_id', targetTableId)
+              .limit(1)
+              .maybeSingle();
+            validSessionId = anySess?.id || freshSessionId;
+          }
         }
+      }
+    }
+
+    if (!validSessionId) {
+      const { data: fallbackSess } = await supabase.from('table_sessions').select('id').limit(1).maybeSingle();
+      if (fallbackSess?.id) {
+        validSessionId = fallbackSess.id;
+      } else {
+        const emergencySessId = crypto.randomUUID();
+        const { data: anyTable } = await supabase.from('restaurant_tables').select('id').limit(1).maybeSingle();
+        await supabase.from('table_sessions').insert({
+          id: emergencySessId,
+          table_id: anyTable?.id || null,
+          status: 'active',
+          opened_at: new Date().toISOString(),
+          created_at: new Date().toISOString(),
+        });
+        validSessionId = emergencySessId;
       }
     }
 

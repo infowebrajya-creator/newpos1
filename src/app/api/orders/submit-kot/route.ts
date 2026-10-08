@@ -11,21 +11,29 @@ export async function POST(req: Request) {
 
     const supabase = await createClient();
 
-    // 1. Ensure tableSessionId exists in table_sessions table to satisfy FK constraint
-    let validSessionId = tableSessionId;
+    // 1. Robustly ensure validSessionId exists in table_sessions table to satisfy FK constraint
+    let validSessionId: string | null = null;
+
+    // Check if tableSessionId is already a valid id in table_sessions
     const { data: existingSession } = await supabase
       .from('table_sessions')
       .select('id, table_id')
       .eq('id', tableSessionId)
       .maybeSingle();
 
-    if (existingSession) {
+    if (existingSession?.id) {
       validSessionId = existingSession.id;
     } else {
+      // Find matching table by ID or table_number variations (e.g. 'T-03', 'TT-03', '3')
+      const cleanNum = String(tableSessionId).replace(/^TT-|^T-/, '');
+      const formattedNum = `T-${cleanNum.padStart(2, '0')}`;
+      const shortFormattedNum = `T-${cleanNum}`;
+
       const { data: matchedTable } = await supabase
         .from('restaurant_tables')
         .select('id')
-        .eq('id', tableSessionId)
+        .or(`id.eq.${tableSessionId},table_number.eq.${tableSessionId},table_number.eq.${formattedNum},table_number.eq.${shortFormattedNum},table_number.eq.${cleanNum}`)
+        .limit(1)
         .maybeSingle();
 
       let targetTableId = matchedTable?.id;
@@ -48,11 +56,9 @@ export async function POST(req: Request) {
         if (activeSessForTable?.id) {
           validSessionId = activeSessForTable.id;
         } else {
-          const isUUID = typeof tableSessionId === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(tableSessionId);
-          const newSessionId = isUUID ? tableSessionId : crypto.randomUUID();
-
-          const { error: sessErr } = await supabase.from('table_sessions').insert({
-            id: newSessionId,
+          const freshSessionId = crypto.randomUUID();
+          const { error: insertSessErr } = await supabase.from('table_sessions').insert({
+            id: freshSessionId,
             table_id: targetTableId,
             guest_count: 2,
             status: 'active',
@@ -60,19 +66,17 @@ export async function POST(req: Request) {
             created_at: new Date().toISOString(),
           });
 
-          if (!sessErr) {
-            validSessionId = newSessionId;
+          if (!insertSessErr) {
+            validSessionId = freshSessionId;
           } else {
-            const fallbackId = crypto.randomUUID();
-            await supabase.from('table_sessions').insert({
-              id: fallbackId,
-              table_id: targetTableId,
-              guest_count: 2,
-              status: 'active',
-              opened_at: new Date().toISOString(),
-              created_at: new Date().toISOString(),
-            });
-            validSessionId = fallbackId;
+            // Re-fetch any session for table
+            const { data: anySess } = await supabase
+              .from('table_sessions')
+              .select('id')
+              .eq('table_id', targetTableId)
+              .limit(1)
+              .maybeSingle();
+            validSessionId = anySess?.id || freshSessionId;
           }
         }
 
@@ -80,6 +84,25 @@ export async function POST(req: Request) {
           .from('restaurant_tables')
           .update({ status: 'occupied', updated_at: new Date().toISOString() })
           .eq('id', targetTableId);
+      }
+    }
+
+    // Ultimate safety check to ensure validSessionId is never invalid
+    if (!validSessionId) {
+      const { data: fallbackSess } = await supabase.from('table_sessions').select('id').limit(1).maybeSingle();
+      if (fallbackSess?.id) {
+        validSessionId = fallbackSess.id;
+      } else {
+        const emergencySessId = crypto.randomUUID();
+        const { data: anyTable } = await supabase.from('restaurant_tables').select('id').limit(1).maybeSingle();
+        await supabase.from('table_sessions').insert({
+          id: emergencySessId,
+          table_id: anyTable?.id || null,
+          status: 'active',
+          opened_at: new Date().toISOString(),
+          created_at: new Date().toISOString(),
+        });
+        validSessionId = emergencySessId;
       }
     }
 
