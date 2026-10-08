@@ -1,187 +1,122 @@
 -- ============================================
--- THE XINGS KITCHEN MENU FOR WEBRAJYA POS
+-- THE XINGS KITCHEN - LATEST UPDATED MENU SCRIPT
+-- Run this in Supabase SQL Editor to replace old menu items with the latest menu.
 -- ============================================
 
 BEGIN;
 
--- 1. MENU CATEGORIES
-INSERT INTO public.menu_categories (name, display_order, is_active)
+-- 1. CLEAN RESET OF EXISTING MENU ITEMS & CATEGORIES
+DELETE FROM public.kot_items;
+DELETE FROM public.order_items;
+DELETE FROM public.bill_items;
+DELETE FROM public.menu_items;
+DELETE FROM public.menu_categories;
+
+-- 2. INSERT 13 MENU CATEGORIES
+INSERT INTO public.menu_categories (id, name, display_order, is_active)
 VALUES
-  ('Crispy Starter', 1, true),
-  ('Soup', 2, true),
-  ('Starter', 3, true),
-  ('Rolls', 4, true),
-  ('Veg Rice', 5, true),
-  ('Veg Noodles', 6, true),
-  ('Combo', 7, true);
+  ('c1010000-0000-0000-0000-000000000001', 'PANEER STARTER', 1, true),
+  ('c1010000-0000-0000-0000-000000000002', 'CORN STORY', 2, true),
+  ('c1010000-0000-0000-0000-000000000003', 'MUSHROOM', 3, true),
+  ('c1010000-0000-0000-0000-000000000004', 'POTATOES', 4, true),
+  ('c1010000-0000-0000-0000-000000000005', 'SOUP', 5, true),
+  ('c1010000-0000-0000-0000-000000000006', 'CRISPY FRIES', 6, true),
+  ('c1010000-0000-0000-0000-000000000007', 'CRISPY STARTER', 7, true),
+  ('c1010000-0000-0000-0000-000000000008', 'VEG NOODLES', 8, true),
+  ('c1010000-0000-0000-0000-000000000009', 'RICE BOWL', 9, true),
+  ('c1010000-0000-0000-0000-000000000010', 'PANEER RICE', 10, true),
+  ('c1010000-0000-0000-0000-000000000011', 'VEG PULAO', 11, true),
+  ('c1010000-0000-0000-0000-000000000012', 'COMBO', 12, true),
+  ('c1010000-0000-0000-0000-000000000013', '3 COURSE MEAL', 13, true);
 
+-- 3. INSERT MENU ITEMS FOR EACH CATEGORY
 
--- ============================================
--- 2. CRISPY STARTER (Price: ₹49)
--- ============================================
+-- Category 1: PANEER STARTER (₹129)
+INSERT INTO public.menu_items (category_id, name, price, is_veg, is_available) VALUES
+  ('c1010000-0000-0000-0000-000000000001', 'Paneer Chilly', 129.00, true, true),
+  ('c1010000-0000-0000-0000-000000000001', 'Dragon Paneer', 129.00, true, true),
+  ('c1010000-0000-0000-0000-000000000001', 'Paneer Manchurian', 129.00, true, true),
+  ('c1010000-0000-0000-0000-000000000001', 'Lemon Paneer', 129.00, true, true),
+  ('c1010000-0000-0000-0000-000000000001', 'Paneer Stick', 129.00, true, true),
+  ('c1010000-0000-0000-0000-000000000001', 'Garlic Paneer', 129.00, true, true),
+  ('c1010000-0000-0000-0000-000000000001', 'Paneer Black Pepper', 129.00, true, true),
+  ('c1010000-0000-0000-0000-000000000001', 'Paneer 65', 129.00, true, true),
+  ('c1010000-0000-0000-0000-000000000001', 'Thread Paneer', 129.00, true, true),
+  ('c1010000-0000-0000-0000-000000000001', 'Paneer Kumkum', 129.00, true, true),
+  ('c1010000-0000-0000-0000-000000000001', 'Paneer Majestic', 129.00, true, true);
 
-INSERT INTO public.menu_items (category_id, name, price, is_veg, is_available)
-SELECT
-  c.id,
-  v.name,
-  49.00,
-  true,
-  true
-FROM public.menu_categories c
-CROSS JOIN (
-  VALUES
-    ('Crispy Veg'),
-    ('Crispy Corn'),
-    ('Thread Paneer'),
-    ('Paneer Kumkum'),
-    ('Paneer Majestic')
-) AS v(name)
-WHERE c.name = 'Crispy Starter';
+-- Category 2: CORN STORY (₹99)
+INSERT INTO public.menu_items (category_id, name, price, is_veg, is_available) VALUES
+  ('c1010000-0000-0000-0000-000000000002', 'Crispy Corn', 99.00, true, true),
+  ('c1010000-0000-0000-0000-000000000002', 'Chilly Baby Corn', 99.00, true, true);
 
+-- Category 3: MUSHROOM (₹129)
+INSERT INTO public.menu_items (category_id, name, price, is_veg, is_available) VALUES
+  ('c1010000-0000-0000-0000-000000000003', 'Mushroom Chilli', 129.00, true, true),
+  ('c1010000-0000-0000-0000-000000000003', 'Mushroom Fried Rice', 129.00, true, true);
 
--- ============================================
--- 3. SOUP (Price: ₹49)
--- ============================================
+-- Category 4: POTATOES (₹99 / ₹129)
+INSERT INTO public.menu_items (category_id, name, price, is_veg, is_available) VALUES
+  ('c1010000-0000-0000-0000-000000000004', 'Chilli Potato', 99.00, true, true),
+  ('c1010000-0000-0000-0000-000000000004', 'Honey Chilli Potato', 129.00, true, true);
 
-INSERT INTO public.menu_items (category_id, name, price, is_veg, is_available)
-SELECT
-  c.id,
-  v.name,
-  49.00,
-  true,
-  true
-FROM public.menu_categories c
-CROSS JOIN (
-  VALUES
-    ('Veg Manchow Soup'),
-    ('Veg Hot & Sour Soup'),
-    ('Veg Sweet Corn Soup'),
-    ('Lemon Coriander Soup'),
-    ('Onion Garlic Soup'),
-    ('Tomato Soup'),
-    ('Tom Yum Soup')
-) AS v(name)
-WHERE c.name = 'Soup';
+-- Category 5: SOUP (₹49)
+INSERT INTO public.menu_items (category_id, name, price, is_veg, is_available) VALUES
+  ('c1010000-0000-0000-0000-000000000005', 'Veg Manchow Soup', 49.00, true, true),
+  ('c1010000-0000-0000-0000-000000000005', 'Veg Hot & Sour Soup', 49.00, true, true),
+  ('c1010000-0000-0000-0000-000000000005', 'Veg Sweet Corn Soup', 49.00, true, true),
+  ('c1010000-0000-0000-0000-000000000005', 'Lemon Coriander Soup', 49.00, true, true),
+  ('c1010000-0000-0000-0000-000000000005', 'Onion Garlic Soup', 49.00, true, true);
 
+-- Category 6: CRISPY FRIES (₹49 / ₹59)
+INSERT INTO public.menu_items (category_id, name, price, is_veg, is_available) VALUES
+  ('c1010000-0000-0000-0000-000000000006', 'French Fries', 49.00, true, true),
+  ('c1010000-0000-0000-0000-000000000006', 'Peri Peri French Fries', 59.00, true, true);
 
--- ============================================
--- 4. STARTER (Price: ₹99)
--- ============================================
+-- Category 7: CRISPY STARTER (₹99)
+INSERT INTO public.menu_items (category_id, name, price, is_veg, is_available) VALUES
+  ('c1010000-0000-0000-0000-000000000007', 'Crispy Veg', 99.00, true, true),
+  ('c1010000-0000-0000-0000-000000000007', 'Crispy Corn', 99.00, true, true),
+  ('c1010000-0000-0000-0000-000000000007', 'Veg Lollipop', 99.00, true, true),
+  ('c1010000-0000-0000-0000-000000000007', 'Veg Manchurian', 99.00, true, true);
 
-INSERT INTO public.menu_items (category_id, name, price, is_veg, is_available)
-SELECT
-  c.id,
-  v.name,
-  99.00,
-  true,
-  true
-FROM public.menu_categories c
-CROSS JOIN (
-  VALUES
-    ('Paneer Chilly'),
-    ('Dragon Paneer'),
-    ('Paneer Manchurian'),
-    ('Lemon Paneer'),
-    ('Paneer Stick'),
-    ('Garlic Paneer'),
-    ('Paneer Black Pepper'),
-    ('Veg Lollipop'),
-    ('Veg Manchurian'),
-    ('Paneer 65'),
-    ('Veg 99')
-) AS v(name)
-WHERE c.name = 'Starter';
+-- Category 8: VEG NOODLES (₹99)
+INSERT INTO public.menu_items (category_id, name, price, is_veg, is_available) VALUES
+  ('c1010000-0000-0000-0000-000000000008', 'Veg Hakka Noodles', 99.00, true, true),
+  ('c1010000-0000-0000-0000-000000000008', 'Veg Schezwan Noodles', 99.00, true, true),
+  ('c1010000-0000-0000-0000-000000000008', 'Veg Chilly Noodles', 99.00, true, true),
+  ('c1010000-0000-0000-0000-000000000008', 'Veg Manchurian Noodles', 99.00, true, true),
+  ('c1010000-0000-0000-0000-000000000008', 'Veg Dragon Noodles', 99.00, true, true),
+  ('c1010000-0000-0000-0000-000000000008', 'Paneer Noodles', 99.00, true, true);
 
+-- Category 9: RICE BOWL (₹99)
+INSERT INTO public.menu_items (category_id, name, price, is_veg, is_available) VALUES
+  ('c1010000-0000-0000-0000-000000000009', 'Veg Fried Rice', 99.00, true, true),
+  ('c1010000-0000-0000-0000-000000000009', 'Veg Schezwan Fried Rice', 99.00, true, true),
+  ('c1010000-0000-0000-0000-000000000009', 'Veg Schez. Triple Fried Rice', 99.00, true, true),
+  ('c1010000-0000-0000-0000-000000000009', 'Veg Manchurian Fried Rice', 99.00, true, true),
+  ('c1010000-0000-0000-0000-000000000009', 'Veg Chilly Fried Rice', 99.00, true, true),
+  ('c1010000-0000-0000-0000-000000000009', 'Veg Singapore Fried Rice', 99.00, true, true),
+  ('c1010000-0000-0000-0000-000000000009', 'Veg Garlic Chilly Fried Rice', 99.00, true, true),
+  ('c1010000-0000-0000-0000-000000000009', 'Mushroom Fried Rice', 99.00, true, true);
 
--- ============================================
--- 5. ROLLS (Price: ₹99)
--- ============================================
+-- Category 10: PANEER RICE (₹129)
+INSERT INTO public.menu_items (category_id, name, price, is_veg, is_available) VALUES
+  ('c1010000-0000-0000-0000-000000000010', 'Veg Paneer Fried Rice', 129.00, true, true);
 
-INSERT INTO public.menu_items (category_id, name, price, is_veg, is_available)
-SELECT
-  c.id,
-  v.name,
-  99.00,
-  true,
-  true
-FROM public.menu_categories c
-CROSS JOIN (
-  VALUES
-    ('Paneer Spring Roll'),
-    ('Spring Roll')
-) AS v(name)
-WHERE c.name = 'Rolls';
+-- Category 11: VEG PULAO (₹129 / ₹139)
+INSERT INTO public.menu_items (category_id, name, price, is_veg, is_available) VALUES
+  ('c1010000-0000-0000-0000-000000000011', 'Matar Pulao', 129.00, true, true),
+  ('c1010000-0000-0000-0000-000000000011', 'Paneer Pulao', 139.00, true, true);
 
+-- Category 12: COMBO (₹99)
+INSERT INTO public.menu_items (category_id, name, price, is_veg, is_available) VALUES
+  ('c1010000-0000-0000-0000-000000000012', 'Manchurian + Noodles', 99.00, true, true),
+  ('c1010000-0000-0000-0000-000000000012', 'Noodles + Crispy Veg', 99.00, true, true);
 
--- ============================================
--- 6. VEG RICE (Price: ₹99)
--- ============================================
-
-INSERT INTO public.menu_items (category_id, name, price, is_veg, is_available)
-SELECT
-  c.id,
-  v.name,
-  99.00,
-  true,
-  true
-FROM public.menu_categories c
-CROSS JOIN (
-  VALUES
-    ('Veg Fried Rice'),
-    ('Veg Schezwan Fried Rice'),
-    ('Veg Schez. Triple Fried Rice'),
-    ('Veg Manchurian Fried Rice'),
-    ('Veg Chilly Fried Rice'),
-    ('Veg Singapore Fried Rice'),
-    ('Veg Dragon Fried Rice'),
-    ('Veg Paneer Fried Rice'),
-    ('Veg Garlic Chilly Fried Rice')
-) AS v(name)
-WHERE c.name = 'Veg Rice';
-
-
--- ============================================
--- 7. VEG NOODLES (Price: ₹99)
--- ============================================
-
-INSERT INTO public.menu_items (category_id, name, price, is_veg, is_available)
-SELECT
-  c.id,
-  v.name,
-  99.00,
-  true,
-  true
-FROM public.menu_categories c
-CROSS JOIN (
-  VALUES
-    ('Veg Hakka Noodles'),
-    ('Veg Schezwan Noodles'),
-    ('Veg Schez. Triple Noodles'),
-    ('Veg Chilly Noodles'),
-    ('Veg Manchurian Noodles'),
-    ('Veg Dragon Noodles'),
-    ('Paneer Noodles')
-) AS v(name)
-WHERE c.name = 'Veg Noodles';
-
-
--- ============================================
--- 8. COMBO (Price: ₹99)
--- ============================================
-
-INSERT INTO public.menu_items (category_id, name, price, is_veg, is_available)
-SELECT
-  c.id,
-  v.name,
-  99.00,
-  true,
-  true
-FROM public.menu_categories c
-CROSS JOIN (
-  VALUES
-    ('Fried Rice + Manchurian + Noodles'),
-    ('Noodles + Paneer Chilly')
-) AS v(name)
-WHERE c.name = 'Combo';
+-- Category 13: 3 COURSE MEAL (₹149)
+INSERT INTO public.menu_items (category_id, name, price, is_veg, is_available) VALUES
+  ('c1010000-0000-0000-0000-000000000013', 'French Fries + Fried Rice + Veg Crispy', 149.00, true, true),
+  ('c1010000-0000-0000-0000-000000000013', 'French Fries + Veg Noodles + Fried Rice', 149.00, true, true);
 
 COMMIT;
