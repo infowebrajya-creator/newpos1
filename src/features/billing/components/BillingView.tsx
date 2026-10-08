@@ -54,7 +54,7 @@ export function BillingView({
   initialOrderDetails = null,
 }: BillingViewProps) {
   const session = table.active_session;
-  const tableSessionId = session?.id || '';
+  const tableSessionId = session?.id || table?.id || '';
   const tableNumber = table.table_number;
   const router = useRouter();
 

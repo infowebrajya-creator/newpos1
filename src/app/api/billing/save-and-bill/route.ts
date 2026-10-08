@@ -230,48 +230,52 @@ export async function POST(req: Request) {
     let { data: existingBill } = await supabase
       .from('bills')
       .select('*')
-      .eq('order_id', order.id)
+      .eq('table_session_id', validSessionId)
+      .not('status', 'eq', 'voided')
+      .order('created_at', { ascending: false })
+      .limit(1)
       .maybeSingle();
 
     let billId = existingBill?.id;
     if (!existingBill) {
       billId = crypto.randomUUID();
-      const { error: billInsertErr } = await supabase.from('bills').insert({
+      const insertPayload: any = {
         id: billId,
-        order_id: order.id,
-        table_session_id: tableSessionId,
+        table_session_id: validSessionId,
         subtotal,
         discount_amount: 0,
         tax_amount: 0,
-        service_charge_amount: 0,
-        final_amount: grandTotal,
+        grand_total: grandTotal,
         payment_status: paymentStatus,
+        status: billStatus,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
-      });
+      };
+
+      const { error: billInsertErr } = await supabase.from('bills').insert(insertPayload);
 
       if (billInsertErr) {
-        // Retry insert without table_session_id if schema doesn't have that column
-        await supabase.from('bills').insert({
+        // Fallback: retry without status if constraint or enum mismatch
+        const { error: retryErr } = await supabase.from('bills').insert({
           id: billId,
-          order_id: order.id,
+          table_session_id: validSessionId,
           subtotal,
-          discount_amount: 0,
-          tax_amount: 0,
-          service_charge_amount: 0,
-          final_amount: grandTotal,
+          grand_total: grandTotal,
           payment_status: paymentStatus,
           created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
         });
+        if (retryErr) {
+          return NextResponse.json({ error: `Failed to insert bill: ${retryErr.message}` }, { status: 500 });
+        }
       }
     } else {
       await supabase
         .from('bills')
         .update({
           subtotal,
-          final_amount: grandTotal,
+          grand_total: grandTotal,
           payment_status: paymentStatus,
+          status: billStatus,
           updated_at: new Date().toISOString(),
         })
         .eq('id', billId);
@@ -280,10 +284,11 @@ export async function POST(req: Request) {
     // 6. Insert Bill Items
     if (billId && allOrderItems.length > 0) {
       await supabase.from('bill_items').delete().eq('bill_id', billId);
-      const billItemsToInsert = allOrderItems.map((oi: any) => {
+      for (const oi of allOrderItems) {
         const itemName = oi.item_name || oi.name || 'Item';
         const totalPrice = oi.is_complimentary ? 0 : (oi.unit_price || 0) * (oi.quantity || 1);
-        return {
+
+        const { error: itemInsertErr } = await supabase.from('bill_items').insert({
           id: crypto.randomUUID(),
           bill_id: billId,
           order_item_id: oi.id,
@@ -293,10 +298,20 @@ export async function POST(req: Request) {
           unit_price: oi.unit_price || 0,
           line_total: totalPrice,
           total_price: totalPrice,
-        };
-      });
+        });
 
-      await supabase.from('bill_items').insert(billItemsToInsert);
+        if (itemInsertErr) {
+          // Schema fallback if item_name or line_total column does not exist
+          await supabase.from('bill_items').insert({
+            id: crypto.randomUUID(),
+            bill_id: billId,
+            order_item_id: oi.id,
+            quantity: oi.quantity || 1,
+            unit_price: oi.unit_price || 0,
+            total_price: totalPrice,
+          });
+        }
+      }
     }
 
     // 7. If paid, record payment & update session / table
