@@ -63,7 +63,6 @@ export async function POST(req: Request) {
           const { error: insertSessErr } = await supabase.from('table_sessions').insert({
             id: freshSessionId,
             table_id: targetTableId,
-            guest_count: 2,
             status: 'active',
             opened_at: new Date().toISOString(),
             created_at: new Date().toISOString(),
@@ -157,18 +156,30 @@ export async function POST(req: Request) {
         created_at: new Date().toISOString(),
       });
 
-      const orderItemsToInsert = cartItems.map((item: any) => ({
-        id: crypto.randomUUID(),
-        order_round_id: roundId,
-        menu_item_id: item.menuItemId || null,
-        quantity: item.quantity || 1,
-        unit_price: item.unitPrice || 0,
-        notes: item.itemNote?.trim() || null,
-        is_complimentary: !!item.isComplimentary,
-        status: 'pending',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      }));
+      const inputMenuIds = cartItems.map((i: any) => i.menuItemId).filter(Boolean);
+      let validMenuSet = new Set<string>();
+      if (inputMenuIds.length > 0) {
+        const { data: dbMenuItems } = await supabase
+          .from('menu_items')
+          .select('id')
+          .in('id', inputMenuIds);
+        validMenuSet = new Set((dbMenuItems || []).map((m: any) => m.id));
+      }
+
+      const orderItemsToInsert = cartItems.map((item: any) => {
+        const resolvedMenuId = item.menuItemId && validMenuSet.has(item.menuItemId) ? item.menuItemId : null;
+        return {
+          id: crypto.randomUUID(),
+          order_round_id: roundId,
+          menu_item_id: resolvedMenuId,
+          item_name: item.itemName || item.name || 'Item',
+          quantity: item.quantity || 1,
+          unit_price: item.unitPrice || 0,
+          notes: item.itemNote?.trim() || null,
+          is_complimentary: !!item.isComplimentary,
+          created_at: new Date().toISOString(),
+        };
+      });
 
       await supabase.from('order_items').insert(orderItemsToInsert);
     }
