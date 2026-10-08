@@ -13,6 +13,7 @@ interface PrinterConfigurationSectionProps {
 
 export function PrinterConfigurationSection({ canEdit }: PrinterConfigurationSectionProps) {
   const [config, setConfig] = useState<PrinterConfig>(getPrinterConfig());
+  const [systemPrinters, setSystemPrinters] = useState<any[]>([]);
   const [isTesting, setIsTesting] = useState(false);
   const [isScanningUsb, setIsScanningUsb] = useState(false);
   const [testResult, setTestResult] = useState<PrintResult | null>(null);
@@ -20,6 +21,16 @@ export function PrinterConfigurationSection({ canEdit }: PrinterConfigurationSec
 
   useEffect(() => {
     setConfig(getPrinterConfig());
+
+    if (typeof window !== 'undefined' && window.electronAPI) {
+      window.electronAPI.getPrinters().then((printers) => {
+        if (Array.isArray(printers)) {
+          setSystemPrinters(printers);
+        }
+      }).catch((err) => {
+        console.error('Failed to query Electron printers:', err);
+      });
+    }
   }, []);
 
   const handleSave = () => {
@@ -227,36 +238,90 @@ export function PrinterConfigurationSection({ canEdit }: PrinterConfigurationSec
           </div>
         </div>
 
+        {/* Electron Native Mode Banner */}
+        {typeof window !== 'undefined' && window.electronAPI && (
+          <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-lg text-indigo-900 text-xs font-bold flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+              <span>⚡ Native Electron Desktop Mode Active — Direct Silent Thermal Printing & Cash Drawer Enabled</span>
+            </div>
+            <button
+              type="button"
+              onClick={async () => {
+                if (window.electronAPI) {
+                  const res = await window.electronAPI.openCashDrawer();
+                  alert(res.message || 'Cash drawer trigger sent!');
+                }
+              }}
+              className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-[11px] font-bold cursor-pointer transition shadow-2xs"
+            >
+              💵 Test Cash Drawer Kickout
+            </button>
+          </div>
+        )}
+
         {/* Printer Names */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="block font-bold text-slate-700 mb-1 flex items-center space-x-1">
               <FileText className="w-3.5 h-3.5 text-slate-600" />
-              <span>Bill Thermal Printer Name</span>
+              <span>Bill Thermal Printer</span>
             </label>
-            <input
-              type="text"
-              value={config.billPrinterName}
-              onChange={(e) => setConfig({ ...config, billPrinterName: e.target.value })}
-              disabled={!canEdit}
-              placeholder="EPSON TM-T88VI or ReceiptPrinter"
-              className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-md text-slate-900 font-medium focus:outline-none focus:border-red-500 disabled:bg-slate-50"
-            />
+            {systemPrinters.length > 0 ? (
+              <select
+                value={config.billPrinterName}
+                onChange={(e) => setConfig({ ...config, billPrinterName: e.target.value })}
+                disabled={!canEdit}
+                className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-md text-slate-900 font-medium focus:outline-none focus:border-red-500 disabled:bg-slate-50"
+              >
+                <option value="">Default System Printer</option>
+                {systemPrinters.map((p, idx) => (
+                  <option key={idx} value={p.name}>
+                    {p.name} {p.isDefault ? '(Default OS Printer)' : ''}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                type="text"
+                value={config.billPrinterName}
+                onChange={(e) => setConfig({ ...config, billPrinterName: e.target.value })}
+                disabled={!canEdit}
+                placeholder="EPSON TM-T88VI or ReceiptPrinter"
+                className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-md text-slate-900 font-medium focus:outline-none focus:border-red-500 disabled:bg-slate-50"
+              />
+            )}
           </div>
 
           <div>
             <label className="block font-bold text-slate-700 mb-1 flex items-center space-x-1">
               <ChefHat className="w-3.5 h-3.5 text-slate-600" />
-              <span>Kitchen KOT Printer Name</span>
+              <span>Kitchen KOT Printer</span>
             </label>
-            <input
-              type="text"
-              value={config.kitchenPrinterName}
-              onChange={(e) => setConfig({ ...config, kitchenPrinterName: e.target.value })}
-              disabled={!canEdit}
-              placeholder="KitchenPrinter1"
-              className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-md text-slate-900 font-medium focus:outline-none focus:border-red-500 disabled:bg-slate-50"
-            />
+            {systemPrinters.length > 0 ? (
+              <select
+                value={config.kitchenPrinterName}
+                onChange={(e) => setConfig({ ...config, kitchenPrinterName: e.target.value })}
+                disabled={!canEdit}
+                className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-md text-slate-900 font-medium focus:outline-none focus:border-red-500 disabled:bg-slate-50"
+              >
+                <option value="">Default System Printer</option>
+                {systemPrinters.map((p, idx) => (
+                  <option key={idx} value={p.name}>
+                    {p.name} {p.isDefault ? '(Default OS Printer)' : ''}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                type="text"
+                value={config.kitchenPrinterName}
+                onChange={(e) => setConfig({ ...config, kitchenPrinterName: e.target.value })}
+                disabled={!canEdit}
+                placeholder="KitchenPrinter1"
+                className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-md text-slate-900 font-medium focus:outline-none focus:border-red-500 disabled:bg-slate-50"
+              />
+            )}
           </div>
         </div>
 

@@ -8,7 +8,7 @@ declare global {
       isElectron: boolean;
       getPrinters: () => Promise<any[]>;
       printSilent: (options: { deviceName?: string; silent?: boolean; copies?: number }) => Promise<{ success: boolean; error?: string }>;
-      openCashDrawer: () => Promise<{ success: boolean }>;
+      openCashDrawer: () => Promise<{ success: boolean; message?: string }>;
       toggleFullscreen: () => Promise<boolean>;
     };
   }
