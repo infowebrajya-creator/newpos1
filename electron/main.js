@@ -10,6 +10,7 @@ function createWindow() {
     minWidth: 1024,
     minHeight: 768,
     title: 'WebRajya POS - Desktop',
+    icon: path.join(__dirname, 'icon.png'),
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
