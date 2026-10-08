@@ -97,17 +97,30 @@ ipcMain.handle('toggle-fullscreen', async () => {
 });
 
 // ----------------------------------------------------
-// App Lifecycle
+// App Lifecycle & Shortcuts
 // ----------------------------------------------------
+const { globalShortcut } = require('electron');
 
 app.whenReady().then(() => {
   createWindow();
+
+  // Register F11 for Fullscreen / Kiosk Toggle
+  globalShortcut.register('F11', () => {
+    if (mainWindow) {
+      const isFullScreen = mainWindow.isFullScreen();
+      mainWindow.setFullScreen(!isFullScreen);
+    }
+  });
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow();
     }
   });
+});
+
+app.on('will-quit', () => {
+  globalShortcut.unregisterAll();
 });
 
 app.on('window-all-closed', () => {
