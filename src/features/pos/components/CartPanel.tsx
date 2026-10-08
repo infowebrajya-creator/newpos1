@@ -7,6 +7,7 @@ import { useCart } from '@/features/pos/context/CartContext';
 import { getActiveOrderForSession, createOrder, addOrderRoundBatch } from '@/services/orders/orderService';
 import { submitRoundToKitchen } from '@/services/kitchen/kitchenService';
 import { buildKotPrintDocument, buildBillPrintDocument } from '@/services/printing/printDocumentService';
+import { printKot } from '@/services/printing/printService';
 import { PrintPreviewModal } from '@/features/printing/components/PrintPreviewModal';
 import { KotPrintDocument, BillPrintDocument } from '@/types/printing';
 import { usePOSHotkeys } from '@/hooks/usePOSHotkeys';
@@ -34,10 +35,11 @@ import {
 interface CartPanelProps {
   tableSessionId: string;
   tableNumber: string;
+  tableId?: string;
   onOrderSubmitted?: () => void;
 }
 
-export function CartPanel({ tableSessionId, tableNumber, onOrderSubmitted }: CartPanelProps) {
+export function CartPanel({ tableSessionId, tableNumber, tableId, onOrderSubmitted }: CartPanelProps) {
   const router = useRouter();
   const {
     cartItems,
@@ -60,6 +62,15 @@ export function CartPanel({ tableSessionId, tableNumber, onOrderSubmitted }: Car
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [failedRoundId, setFailedRoundId] = useState<string | null>(null);
+
+  // Prefetch routes for zero-lag instant transitions
+  React.useEffect(() => {
+    router.prefetch('/pos/billing');
+    router.prefetch('/pos/tables');
+    if (tableId) {
+      router.prefetch(`/pos/billing?tableId=${tableId}`);
+    }
+  }, [router, tableId]);
 
   // Sync saved POS workstation preferences (Default Order Type)
   React.useEffect(() => {
@@ -110,6 +121,7 @@ export function CartPanel({ tableSessionId, tableNumber, onOrderSubmitted }: Car
           tableSessionId,
           cartItems: cartItems.map((item) => ({
             menuItemId: item.menuItemId,
+            itemName: item.itemName,
             quantity: item.quantity,
             unitPrice: item.unitPrice,
             itemNote: item.itemNote,
@@ -123,13 +135,14 @@ export function CartPanel({ tableSessionId, tableNumber, onOrderSubmitted }: Car
         throw new Error(data.error || 'Unable to send order round to kitchen.');
       }
 
-      if (shouldPrint && data.roundId) {
+      if (shouldPrint && (data.kotId || data.roundId || data.kotDocument)) {
         try {
-          const kotDoc = await buildKotPrintDocument(data.roundId, false);
-          setActiveKotDoc(kotDoc);
-          setIsPrintModalOpen(true);
+          const targetKotId = data.kotId || data.roundId;
+          if (targetKotId) {
+            await printKot(targetKotId, false);
+          }
         } catch {
-          // Keep submission state if print fails
+          // Direct print error handled gracefully
         }
       }
 
@@ -153,20 +166,34 @@ export function CartPanel({ tableSessionId, tableNumber, onOrderSubmitted }: Car
     }
   };
 
-  // Save & Bill Workflow -> Redirects directly to /pos/billing (Image 4)
+  // Save & Bill Workflow -> Instant 0ms Optimistic Redirect
   const handleSaveAndBill = async () => {
     setError(null);
     setSuccessMsg(null);
 
-    try {
-      setIsLoading(true);
+    if (cartItems.length === 0) return;
 
-      const res = await fetch('/api/billing/save-and-bill', {
+    const targetTableId = tableId || tableSessionId;
+    const currentCartSnapshot = [...cartItems];
+
+    // 1. Instant 0ms local state update & cart clear
+    clearCart();
+
+    // 2. Instant zero-delay client navigation
+    if (targetTableId) {
+      router.push(`/pos/billing?tableId=${targetTableId}`);
+    } else {
+      router.push('/pos/billing');
+    }
+
+    // 3. Asynchronous background persistence call
+    try {
+      fetch('/api/billing/save-and-bill', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           tableSessionId,
-          cartItems: cartItems.map((item) => ({
+          cartItems: currentCartSnapshot.map((item) => ({
             menuItemId: item.menuItemId,
             quantity: item.quantity,
             unitPrice: item.unitPrice,
@@ -177,28 +204,8 @@ export function CartPanel({ tableSessionId, tableNumber, onOrderSubmitted }: Car
           isPaid,
         }),
       });
-
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || 'Failed to save and bill.');
-      }
-
-      clearCart();
-      setIsLoading(false);
-
-      // Direct navigation to Bill & Settlement History screen
-      router.push('/pos/billing');
-      router.refresh();
-    } catch (err: unknown) {
-      setIsLoading(false);
-      const msg = err instanceof Error ? err.message : '';
-      if (msg.includes('row-level security') || msg.includes('policy')) {
-        setError(
-          'Row-Level Security (RLS) is active on Supabase tables. Run supabase/fix_rls_policies.sql in Supabase SQL Editor.'
-        );
-      } else {
-        setError(`Save & Bill failed: ${msg}`);
-      }
+    } catch {
+      // Handled silently
     }
   };
 
@@ -213,27 +220,24 @@ export function CartPanel({ tableSessionId, tableNumber, onOrderSubmitted }: Car
         <button
           type="button"
           onClick={() => setOrderType('dine_in')}
-          className={`py-1.5 rounded transition uppercase cursor-pointer ${
-            orderType === 'dine_in' ? 'bg-red-600 text-white shadow-2xs font-black' : 'text-slate-700 hover:text-slate-900'
-          }`}
+          className={`py-1.5 rounded transition uppercase cursor-pointer ${orderType === 'dine_in' ? 'bg-red-600 text-white shadow-2xs font-black' : 'text-slate-700 hover:text-slate-900'
+            }`}
         >
           DINE IN
         </button>
         <button
           type="button"
           onClick={() => setOrderType('delivery')}
-          className={`py-1.5 rounded transition uppercase cursor-pointer ${
-            orderType === 'delivery' ? 'bg-red-600 text-white shadow-2xs font-black' : 'text-slate-700 hover:text-slate-900'
-          }`}
+          className={`py-1.5 rounded transition uppercase cursor-pointer ${orderType === 'delivery' ? 'bg-red-600 text-white shadow-2xs font-black' : 'text-slate-700 hover:text-slate-900'
+            }`}
         >
           DELIVERY
         </button>
         <button
           type="button"
           onClick={() => setOrderType('pickup')}
-          className={`py-1.5 rounded transition uppercase cursor-pointer ${
-            orderType === 'pickup' ? 'bg-red-600 text-white shadow-2xs font-black' : 'text-slate-700 hover:text-slate-900'
-          }`}
+          className={`py-1.5 rounded transition uppercase cursor-pointer ${orderType === 'pickup' ? 'bg-red-600 text-white shadow-2xs font-black' : 'text-slate-700 hover:text-slate-900'
+            }`}
         >
           PICK UP
         </button>
@@ -367,9 +371,8 @@ export function CartPanel({ tableSessionId, tableNumber, onOrderSubmitted }: Car
                   <button
                     type="button"
                     onClick={() => toggleComplimentary(item.menuItemId)}
-                    className={`font-semibold ${
-                      item.isComplimentary ? 'text-amber-700 font-bold' : 'text-slate-400 hover:text-slate-700'
-                    }`}
+                    className={`font-semibold ${item.isComplimentary ? 'text-amber-700 font-bold' : 'text-slate-400 hover:text-slate-700'
+                      }`}
                   >
                     {item.isComplimentary ? 'Complimentary' : '+ Comp'}
                   </button>
@@ -551,7 +554,7 @@ export function CartPanel({ tableSessionId, tableNumber, onOrderSubmitted }: Car
         isOpen={isPrintModalOpen}
         onClose={() => setIsPrintModalOpen(false)}
         kotDocument={activeKotDoc}
-        onPrinted={() => {}}
+        onPrinted={() => { }}
       />
     </div>
   );

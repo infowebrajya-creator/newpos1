@@ -33,6 +33,8 @@ export interface MenuItem {
 export interface CartItem {
   menuItemId: string;
   itemName: string;
+  name?: string;
+  item_name?: string;
   unitPrice: number;
   quantity: number;
   itemNote?: string;

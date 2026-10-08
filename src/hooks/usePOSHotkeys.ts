@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
 export interface HotkeyHandlers {
   onSearchFocus?: () => void;
@@ -13,115 +13,159 @@ export interface HotkeyHandlers {
 }
 
 export function usePOSHotkeys(handlers: HotkeyHandlers, active: boolean = true) {
+  const handlersRef = useRef(handlers);
+  const activeRef = useRef(active);
+
+  // Keep refs synchronized with latest handlers without triggering listener re-binding
   useEffect(() => {
-    if (!active) return;
+    handlersRef.current = handlers;
+    activeRef.current = active;
+  });
 
+  useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement | null;
-      const isInputFocused =
-        target &&
-        (target.tagName === 'INPUT' ||
-          target.tagName === 'TEXTAREA' ||
-          target.tagName === 'SELECT' ||
-          target.isContentEditable);
+      if (!activeRef.current) return;
 
-      // Global ESC key (works even when input is focused to clear focus/close modal)
-      if (e.key === 'Escape') {
+      const target = e.target as HTMLElement | null;
+      const activeEl = document.activeElement as HTMLElement | null;
+      const currentTarget = target || activeEl;
+
+      const isInputFocused =
+        currentTarget &&
+        (currentTarget.tagName === 'INPUT' ||
+          currentTarget.tagName === 'TEXTAREA' ||
+          currentTarget.tagName === 'SELECT' ||
+          currentTarget.isContentEditable);
+
+      const code = e.code;
+      const key = e.key;
+      const lowerKey = key.toLowerCase();
+      const currentHandlers = handlersRef.current;
+
+      // Global ESC key (works even when input is focused to clear focus / close modal)
+      if (code === 'Escape' || key === 'Escape') {
         if (isInputFocused) {
-          target?.blur();
+          currentTarget?.blur();
         }
-        if (handlers.onEscape) {
-          handlers.onEscape();
+        if (currentHandlers.onEscape) {
+          e.preventDefault();
+          currentHandlers.onEscape();
         }
         return;
       }
 
       // If typing inside an input field, do not trigger single letter hotkeys (S, K, B, P, X)
       if (isInputFocused) {
-        // Allow Cmd+K or Ctrl+K even inside input
-        if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        // Allow Cmd+K or Ctrl+K even inside input for instant search focus
+        if ((e.metaKey || e.ctrlKey) && (code === 'KeyK' || lowerKey === 'k')) {
           e.preventDefault();
-          handlers.onSearchFocus?.();
+          currentHandlers.onSearchFocus?.();
         }
         return;
       }
 
-      const key = e.key;
-      const lowerKey = key.toLowerCase();
+      const focusSearchInput = () => {
+        if (currentHandlers.onSearchFocus) {
+          currentHandlers.onSearchFocus();
+        } else {
+          const searchEl = document.getElementById('pos-menu-search-input') as HTMLInputElement | null;
+          if (searchEl) {
+            searchEl.focus();
+            searchEl.select();
+          }
+        }
+      };
 
-      // 1. Search Bar Focus: 'S', '/', F1, Cmd+K, Ctrl+K
+      // 1. Search Bar Focus: 'S', '/', F1, Cmd+K, Ctrl+K, Cmd+S, Ctrl+S
       if (
+        code === 'KeyS' ||
         lowerKey === 's' ||
+        code === 'Slash' ||
         key === '/' ||
+        code === 'F1' ||
         key === 'F1' ||
-        ((e.metaKey || e.ctrlKey) && lowerKey === 'k')
+        ((e.metaKey || e.ctrlKey) && (code === 'KeyK' || lowerKey === 'k' || code === 'KeyS' || lowerKey === 's'))
       ) {
+        if (e.repeat) return;
         e.preventDefault();
-        handlers.onSearchFocus?.();
+        focusSearchInput();
         return;
       }
 
-      // 2. Dispatch KOT: 'K', F4, Cmd+Enter, Ctrl+Enter
+      // 2. Dispatch KOT: 'K', F4, Cmd+Enter, Ctrl+Enter, NumpadEnter
       if (
+        code === 'KeyK' ||
         lowerKey === 'k' ||
+        code === 'F4' ||
         key === 'F4' ||
-        ((e.metaKey || e.ctrlKey) && key === 'Enter')
+        ((e.metaKey || e.ctrlKey) && (code === 'Enter' || code === 'NumpadEnter' || key === 'Enter'))
       ) {
+        if (e.repeat) return;
         e.preventDefault();
-        handlers.onDispatchKOT?.();
+        currentHandlers.onDispatchKOT?.();
         return;
       }
 
       // 3. Save & Bill (Checkout): 'B', F2, Cmd+B, Ctrl+B
       if (
+        code === 'KeyB' ||
         lowerKey === 'b' ||
+        code === 'F2' ||
         key === 'F2' ||
-        ((e.metaKey || e.ctrlKey) && lowerKey === 'b')
+        ((e.metaKey || e.ctrlKey) && (code === 'KeyB' || lowerKey === 'b'))
       ) {
+        if (e.repeat) return;
         e.preventDefault();
-        handlers.onSaveAndBill?.();
+        currentHandlers.onSaveAndBill?.();
         return;
       }
 
       // 4. Reprint Receipt: 'P', F7, Cmd+P, Ctrl+P
       if (
+        code === 'KeyP' ||
         lowerKey === 'p' ||
+        code === 'F7' ||
         key === 'F7' ||
-        ((e.metaKey || e.ctrlKey) && lowerKey === 'p')
+        ((e.metaKey || e.ctrlKey) && (code === 'KeyP' || lowerKey === 'p'))
       ) {
+        if (e.repeat) return;
         e.preventDefault();
-        handlers.onReprint?.();
+        currentHandlers.onReprint?.();
         return;
       }
 
       // 5. Quick Cash Pay: 'Space'
-      if (key === ' ' || key === 'Spacebar') {
+      if (code === 'Space' || key === ' ' || key === 'Spacebar') {
+        if (e.repeat) return;
         e.preventDefault();
-        handlers.onQuickPay?.();
+        currentHandlers.onQuickPay?.();
         return;
       }
 
-      // 6. Adjust Quantities: '+' / '-'
-      if (key === '+' || key === '=') {
+      // 6. Adjust Quantities: '+' / '-' (allows holding or repeated keypresses)
+      if (code === 'NumpadAdd' || key === '+' || key === '=') {
         e.preventDefault();
-        handlers.onQuantityIncrease?.();
+        currentHandlers.onQuantityIncrease?.();
         return;
       }
-      if (key === '-') {
+      if (code === 'NumpadSubtract' || key === '-') {
         e.preventDefault();
-        handlers.onQuantityDecrease?.();
+        currentHandlers.onQuantityDecrease?.();
         return;
       }
 
       // 7. Remove Item: 'X'
-      if (lowerKey === 'x') {
+      if (code === 'KeyX' || lowerKey === 'x') {
+        if (e.repeat) return;
         e.preventDefault();
-        handlers.onRemoveItem?.();
+        currentHandlers.onRemoveItem?.();
         return;
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handlers, active]);
+    // Use capture phase for immediate root-level key intercept without DOM propagation latency
+    window.addEventListener('keydown', handleKeyDown, { capture: true });
+    return () => window.removeEventListener('keydown', handleKeyDown, { capture: true });
+  }, []);
 }
+

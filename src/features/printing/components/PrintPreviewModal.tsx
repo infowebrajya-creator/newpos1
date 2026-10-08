@@ -51,6 +51,10 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
       if (onPrinted) {
         onPrinted(res.result);
       }
+
+      if (res.result.success) {
+        onClose();
+      }
     } catch (err: any) {
       setPrintStatus({
         success: false,

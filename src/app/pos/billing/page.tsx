@@ -22,9 +22,13 @@ export default async function PosBillingPage({ searchParams }: PosBillingPagePro
     const table = tables.find((t) => t.id === tableId);
 
     if (table && table.active_session) {
-      const existingBill = await getServerBillForSession(table.active_session.id);
+      const sessionId = table.active_session.id;
+      const [existingBill, orderDetails] = await Promise.all([
+        getServerBillForSession(sessionId),
+        getServerOrderDetailsForSession(sessionId),
+      ]);
+
       const fullBill = existingBill ? await getServerDetailedBill(existingBill.id) : null;
-      const orderDetails = await getServerOrderDetailsForSession(table.active_session.id);
 
       return (
         <BillingView

@@ -16,7 +16,7 @@ interface TableCardProps {
   onResetTable?: (table: TableWithSession) => void;
 }
 
-export function TableCard({ table, onOpenTable, onShowReservation, onResetTable }: TableCardProps) {
+export const TableCard = React.memo(function TableCard({ table, onOpenTable, onShowReservation, onResetTable }: TableCardProps) {
   const { id, table_number, capacity, status, active_session, active_order } = table;
 
   // Derive robust effective status
@@ -184,4 +184,4 @@ export function TableCard({ table, onOpenTable, onShowReservation, onResetTable 
       </div>
     </div>
   );
-}
+});

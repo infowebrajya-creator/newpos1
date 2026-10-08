@@ -79,12 +79,30 @@ export function QuickTableJumpModal({ isOpen, onClose, onSelectTable }: QuickTab
     }
   }, [filteredTables.length, selectedIndex]);
 
-  const handleNavigateToTable = (table: TableWithSession) => {
+  const handleNavigateToTable = async (table: TableWithSession) => {
     onClose();
     if (onSelectTable) {
       onSelectTable(table);
     } else {
-      router.push(`/pos/order?tableId=${table.id}`);
+      let sessionId = table.active_session?.id;
+      if (!sessionId) {
+        try {
+          const res = await fetch('/api/tables/open', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tableId: table.id, guestCount: 2 }),
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (data?.sessionId) {
+              sessionId = data.sessionId;
+            }
+          }
+        } catch {
+          // Fallback
+        }
+      }
+      router.push(`/pos/order?tableId=${table.id}${sessionId ? `&sessionId=${sessionId}` : ''}`);
     }
   };
 

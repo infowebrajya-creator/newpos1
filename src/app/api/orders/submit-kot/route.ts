@@ -15,11 +15,13 @@ export async function POST(req: Request) {
     let validSessionId = tableSessionId;
     const { data: existingSession } = await supabase
       .from('table_sessions')
-      .select('id')
+      .select('id, table_id')
       .eq('id', tableSessionId)
       .maybeSingle();
 
-    if (!existingSession) {
+    if (existingSession) {
+      validSessionId = existingSession.id;
+    } else {
       const { data: matchedTable } = await supabase
         .from('restaurant_tables')
         .select('id')
@@ -33,32 +35,51 @@ export async function POST(req: Request) {
       }
 
       if (targetTableId) {
-        const isUUID = typeof tableSessionId === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(tableSessionId);
-        const newSessionId = isUUID ? tableSessionId : crypto.randomUUID();
+        // Check if targetTableId already has an active session
+        const { data: activeSessForTable } = await supabase
+          .from('table_sessions')
+          .select('id')
+          .eq('table_id', targetTableId)
+          .in('status', ['active', 'open'])
+          .order('opened_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
 
-        const { error: sessErr } = await supabase.from('table_sessions').insert({
-          id: newSessionId,
-          table_id: targetTableId,
-          guest_count: 2,
-          status: 'active',
-          opened_at: new Date().toISOString(),
-          created_at: new Date().toISOString(),
-        });
-
-        if (!sessErr) {
-          validSessionId = newSessionId;
+        if (activeSessForTable?.id) {
+          validSessionId = activeSessForTable.id;
         } else {
-          const fallbackId = crypto.randomUUID();
-          await supabase.from('table_sessions').insert({
-            id: fallbackId,
+          const isUUID = typeof tableSessionId === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(tableSessionId);
+          const newSessionId = isUUID ? tableSessionId : crypto.randomUUID();
+
+          const { error: sessErr } = await supabase.from('table_sessions').insert({
+            id: newSessionId,
             table_id: targetTableId,
             guest_count: 2,
             status: 'active',
             opened_at: new Date().toISOString(),
             created_at: new Date().toISOString(),
           });
-          validSessionId = fallbackId;
+
+          if (!sessErr) {
+            validSessionId = newSessionId;
+          } else {
+            const fallbackId = crypto.randomUUID();
+            await supabase.from('table_sessions').insert({
+              id: fallbackId,
+              table_id: targetTableId,
+              guest_count: 2,
+              status: 'active',
+              opened_at: new Date().toISOString(),
+              created_at: new Date().toISOString(),
+            });
+            validSessionId = fallbackId;
+          }
         }
+
+        await supabase
+          .from('restaurant_tables')
+          .update({ status: 'occupied', updated_at: new Date().toISOString() })
+          .eq('id', targetTableId);
       }
     }
 
@@ -175,6 +196,9 @@ export async function POST(req: Request) {
       .update({ status: 'in_kitchen', updated_at: new Date().toISOString() })
       .eq('id', order.id);
 
+    let tableNumStr = 'T-1';
+    let floorNameStr = 'Main Floor';
+
     if (order.table_session_id) {
       const { data: session } = await supabase
         .from('table_sessions')
@@ -183,6 +207,26 @@ export async function POST(req: Request) {
         .maybeSingle();
 
       if (session?.table_id) {
+        const { data: tableData } = await supabase
+          .from('restaurant_tables')
+          .select('table_number, floor_id')
+          .eq('id', session.table_id)
+          .maybeSingle();
+
+        if (tableData) {
+          tableNumStr = tableData.table_number ? (tableData.table_number.startsWith('T-') ? tableData.table_number : `T-${tableData.table_number}`) : 'T-1';
+          if (tableData.floor_id) {
+            const { data: floorData } = await supabase
+              .from('floors')
+              .select('name')
+              .eq('id', tableData.floor_id)
+              .maybeSingle();
+            if (floorData?.name) {
+              floorNameStr = floorData.name;
+            }
+          }
+        }
+
         await supabase
           .from('restaurant_tables')
           .update({ status: 'occupied', updated_at: new Date().toISOString() })
@@ -190,11 +234,30 @@ export async function POST(req: Request) {
       }
     }
 
+    const kotDate = new Date();
+    const kotDocument = {
+      kotId,
+      kotNumber: kotId.slice(0, 8),
+      roundNumber: nextRoundNum,
+      date: kotDate.toLocaleDateString('en-IN'),
+      time: kotDate.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
+      tableNumber: tableNumStr,
+      floorName: floorNameStr,
+      items: cartItems.map((item: any) => ({
+        name: item.itemName || 'Item',
+        quantity: Number(item.quantity || 1),
+        itemNote: item.itemNote?.trim() || null,
+      })),
+      notes: null,
+      isReprint: false,
+    };
+
     return NextResponse.json({
       success: true,
       orderId: order.id,
       roundId,
       kotId,
+      kotDocument,
     });
   } catch (err: any) {
     return NextResponse.json({ error: err?.message || 'Internal server error' }, { status: 500 });

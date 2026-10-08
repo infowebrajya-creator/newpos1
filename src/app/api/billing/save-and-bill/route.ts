@@ -159,9 +159,9 @@ export async function POST(req: Request) {
       if (menuItemIds.length > 0) {
         const { data: menuData } = await supabase
           .from('menu_items')
-          .select('id, name')
+          .select('id, name, item_name')
           .in('id', menuItemIds);
-        const menuMap = new Map((menuData || []).map((m: any) => [m.id, m.name]));
+        const menuMap = new Map((menuData || []).map((m: any) => [m.id, m.name || m.item_name]));
         allOrderItems = allOrderItems.map((oi: any) => ({
           ...oi,
           item_name: oi.item_name || oi.name || menuMap.get(oi.menu_item_id) || 'Item',
@@ -308,10 +308,23 @@ export async function POST(req: Request) {
       }
     }
 
+    let resolvedTableId: string | null = null;
+    if (order.table_session_id) {
+      const { data: sessionData } = await supabase
+        .from('table_sessions')
+        .select('table_id')
+        .eq('id', order.table_session_id)
+        .maybeSingle();
+      if (sessionData?.table_id) {
+        resolvedTableId = sessionData.table_id;
+      }
+    }
+
     return NextResponse.json({
       success: true,
       billId,
       orderId: order.id,
+      tableId: resolvedTableId,
     });
   } catch (err: any) {
     return NextResponse.json({ error: err?.message || 'Failed to save and bill' }, { status: 500 });

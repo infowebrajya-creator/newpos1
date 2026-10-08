@@ -24,11 +24,14 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const addItem = (item: MenuItem) => {
     setCartItems((prev) => {
       const existingIndex = prev.findIndex((i) => i.menuItemId === item.id);
-      const name = item.name || item.item_name || 'Item';
+      const name = item.name || item.item_name || (item as any).itemName || (item as any).title || 'Item';
       if (existingIndex > -1) {
         const updated = [...prev];
         updated[existingIndex] = {
           ...updated[existingIndex],
+          itemName: name,
+          name: name,
+          item_name: name,
           quantity: updated[existingIndex].quantity + 1,
         };
         return updated;
@@ -38,7 +41,9 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         {
           menuItemId: item.id,
           itemName: name,
-          unitPrice: item.price,
+          name: name,
+          item_name: name,
+          unitPrice: item.price || (item as any).unitPrice || 0,
           quantity: 1,
           itemNote: '',
           isComplimentary: false,

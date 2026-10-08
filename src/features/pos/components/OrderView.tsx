@@ -204,6 +204,7 @@ function OrderViewInner({ table, categories, menuItems, initialOrderType = 'dine
             <CartPanel
               tableSessionId={table?.active_session?.id || ''}
               tableNumber={tableNumber}
+              tableId={table?.id}
               onOrderSubmitted={handleOrderSubmitted}
             />
           ) : (
@@ -273,6 +274,7 @@ function OrderViewInner({ table, categories, menuItems, initialOrderType = 'dine
                 <CartPanel
                   tableSessionId={table?.active_session?.id || ''}
                   tableNumber={tableNumber}
+                  tableId={table?.id}
                   onOrderSubmitted={handleOrderSubmitted}
                 />
               ) : (

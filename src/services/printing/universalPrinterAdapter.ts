@@ -7,52 +7,74 @@ import { formatEscposBill, formatEscposKot } from './escpos/escposFormatter';
  * Uses native OS/Browser printing queue + WebUSB hardware detection.
  * Works with Epson, TVS, Xprinter, Everycom, Retsol, HOIN, Posiflex, Zebra, Star Micronics, etc.
  */
+function executeSilentPrint(rawText: string, paperWidth: string, docTitle: string) {
+  if (typeof window === 'undefined') return;
+
+  try {
+    let iframe = document.getElementById('silent-print-iframe') as HTMLIFrameElement;
+    if (!iframe) {
+      iframe = document.createElement('iframe');
+      iframe.id = 'silent-print-iframe';
+      iframe.style.position = 'fixed';
+      iframe.style.right = '0';
+      iframe.style.bottom = '0';
+      iframe.style.width = '0px';
+      iframe.style.height = '0px';
+      iframe.style.border = '0px';
+      iframe.style.opacity = '0';
+      iframe.style.pointerEvents = 'none';
+      document.body.appendChild(iframe);
+    }
+
+    const iframeDoc = iframe.contentWindow?.document;
+    if (iframeDoc) {
+      const is58mm = paperWidth === '58mm';
+      iframeDoc.open();
+      iframeDoc.write(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>${docTitle}</title>
+            <style>
+              @page {
+                size: ${is58mm ? '58mm auto' : '80mm auto'};
+                margin: 0;
+              }
+              body {
+                font-family: 'Courier New', Courier, monospace;
+                font-size: 11px;
+                width: ${is58mm ? '58mm' : '80mm'};
+                margin: 0;
+                padding: 4px;
+                white-space: pre;
+                background: #fff;
+                color: #000;
+              }
+            </style>
+          </head>
+          <body>${rawText}</body>
+        </html>
+      `);
+      iframeDoc.close();
+
+      setTimeout(() => {
+        try {
+          iframe.contentWindow?.focus();
+          iframe.contentWindow?.print();
+        } catch (e) {
+          console.error('Silent print trigger error:', e);
+        }
+      }, 150);
+    }
+  } catch (err) {
+    console.error('Silent iframe print error:', err);
+  }
+}
+
 export class UniversalPrinterAdapter implements PrinterAdapter {
   async printBill(doc: BillPrintDocument, config: PrinterConfig): Promise<PrintResult> {
     const rawText = formatEscposBill(doc, config);
-
-    if (typeof window !== 'undefined') {
-      try {
-        // Open silent print window or standard print dialog
-        const printWindow = window.open('', '_blank', 'width=400,height=600');
-        if (printWindow) {
-          const is58mm = config.paperWidth === '58mm';
-          printWindow.document.write(`
-            <!DOCTYPE html>
-            <html>
-              <head>
-                <title>Bill #${doc.billNumber}</title>
-                <style>
-                  @page {
-                    size: ${is58mm ? '58mm auto' : '80mm auto'};
-                    margin: 0;
-                  }
-                  body {
-                    font-family: 'Courier New', Courier, monospace;
-                    font-size: 11px;
-                    width: ${is58mm ? '58mm' : '80mm'};
-                    margin: 0;
-                    padding: 4px;
-                    white-space: pre;
-                    background: #fff;
-                    color: #000;
-                  }
-                </style>
-              </head>
-              <body>${rawText}</body>
-            </html>
-          `);
-          printWindow.document.close();
-          printWindow.focus();
-          setTimeout(() => {
-            printWindow.print();
-            printWindow.close();
-          }, 250);
-        }
-      } catch (err: any) {
-        console.error('Universal print error:', err);
-      }
-    }
+    executeSilentPrint(rawText, config.paperWidth, `Bill #${doc.billNumber}`);
 
     return {
       success: true,
@@ -63,48 +85,7 @@ export class UniversalPrinterAdapter implements PrinterAdapter {
 
   async printKot(doc: KotPrintDocument, config: PrinterConfig): Promise<PrintResult> {
     const rawText = formatEscposKot(doc, config);
-
-    if (typeof window !== 'undefined') {
-      try {
-        const printWindow = window.open('', '_blank', 'width=400,height=600');
-        if (printWindow) {
-          const is58mm = config.paperWidth === '58mm';
-          printWindow.document.write(`
-            <!DOCTYPE html>
-            <html>
-              <head>
-                <title>KOT #${doc.kotNumber}</title>
-                <style>
-                  @page {
-                    size: ${is58mm ? '58mm auto' : '80mm auto'};
-                    margin: 0;
-                  }
-                  body {
-                    font-family: 'Courier New', Courier, monospace;
-                    font-size: 11px;
-                    width: ${is58mm ? '58mm' : '80mm'};
-                    margin: 0;
-                    padding: 4px;
-                    white-space: pre;
-                    background: #fff;
-                    color: #000;
-                  }
-                </style>
-              </head>
-              <body>${rawText}</body>
-            </html>
-          `);
-          printWindow.document.close();
-          printWindow.focus();
-          setTimeout(() => {
-            printWindow.print();
-            printWindow.close();
-          }, 250);
-        }
-      } catch (err: any) {
-        console.error('Universal KOT print error:', err);
-      }
-    }
+    executeSilentPrint(rawText, config.paperWidth, `KOT #${doc.kotNumber}`);
 
     return {
       success: true,

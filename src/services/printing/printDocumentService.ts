@@ -2,6 +2,52 @@ import { createClient } from '@/lib/supabase/client';
 import { BillPrintDocument, KotPrintDocument, BillPrintItem, KotPrintItem } from '@/types/printing';
 import { getRestaurantSettings } from '@/services/settings/settingsService';
 
+let cachedMenuMap: Map<string, string> | null = null;
+
+async function getUniversalMenuMap(): Promise<Map<string, string>> {
+  if (cachedMenuMap && cachedMenuMap.size > 0) {
+    return cachedMenuMap;
+  }
+
+  const map = new Map<string, string>();
+  const supabase = createClient();
+
+  try {
+    const { data } = await supabase.from('menu_items').select('id, name, item_name');
+    if (data && data.length > 0) {
+      data.forEach((m: any) => {
+        if (m.id) {
+          map.set(m.id, m.name || m.item_name || 'Item');
+        }
+      });
+    }
+  } catch {
+    // Ignore error
+  }
+
+  if (map.size === 0) {
+    try {
+      const res = await fetch('/api/menu');
+      if (res.ok) {
+        const json = await res.json();
+        const list = json.menuItems || json.items || [];
+        list.forEach((m: any) => {
+          if (m.id) {
+            map.set(m.id, m.name || m.item_name || 'Item');
+          }
+        });
+      }
+    } catch {
+      // Ignore fetch error
+    }
+  }
+
+  if (map.size > 0) {
+    cachedMenuMap = map;
+  }
+  return map;
+}
+
 /**
  * Build a clean BillPrintDocument from historical Supabase records.
  */
@@ -72,7 +118,7 @@ export async function buildBillPrintDocument(
   // 3. Map Items using stored historical snapshots or fallback to order_items & menu_items
   const orderItemIds = rawItems.map((i: any) => i.order_item_id).filter(Boolean);
   let orderItemsMap = new Map<string, any>();
-  let menuItemsMap = new Map<string, any>();
+  const universalMenuMap = await getUniversalMenuMap();
 
   let orderItemsList: any[] = [];
   if (orderItemIds.length > 0) {
@@ -98,28 +144,10 @@ export async function buildBillPrintDocument(
 
   (orderItemsList || []).forEach((oi: any) => orderItemsMap.set(oi.id, oi));
 
-  const menuItemIds = Array.from(
-    new Set([
-      ...rawItems.map((i: any) => i.menu_item_id),
-      ...orderItemsList.map((oi: any) => oi.menu_item_id),
-    ].filter(Boolean))
-  );
-
-  if (menuItemIds.length > 0) {
-    const { data: menuItems } = await supabase
-      .from('menu_items')
-      .select('id, name')
-      .in('id', menuItemIds);
-    (menuItems || []).forEach((mi: any) => menuItemsMap.set(mi.id, mi.name));
-  }
-
   let items: BillPrintItem[] = rawItems.map((item: any) => {
     const oi = item.order_item_id ? orderItemsMap.get(item.order_item_id) : null;
-    const menuItemName = item.menu_item_id
-      ? menuItemsMap.get(item.menu_item_id)
-      : oi?.menu_item_id
-      ? menuItemsMap.get(oi.menu_item_id)
-      : null;
+    const menuItemId = item.menu_item_id || oi?.menu_item_id;
+    const menuItemName = menuItemId ? universalMenuMap.get(menuItemId) : null;
 
     const name =
       (item.item_name_snapshot && item.item_name_snapshot !== 'Item' ? item.item_name_snapshot : null) ||
@@ -149,7 +177,7 @@ export async function buildBillPrintDocument(
 
   if (items.length === 0 && orderItemsList.length > 0) {
     items = orderItemsList.map((oi: any) => {
-      const menuItemName = oi.menu_item_id ? menuItemsMap.get(oi.menu_item_id) : null;
+      const menuItemName = oi.menu_item_id ? universalMenuMap.get(oi.menu_item_id) : null;
       const name = oi.item_name || oi.name || menuItemName || 'Item';
       const quantity = Number(oi.quantity || 1);
       const unitPrice = Number(oi.unit_price || 0);
@@ -211,9 +239,11 @@ export async function buildBillPrintDocument(
  */
 export async function buildKotPrintDocument(
   kotId: string,
-  isReprint: boolean = false
+  isReprint: boolean = false,
+  fallbackCartItems?: any[]
 ): Promise<KotPrintDocument> {
   const supabase = createClient();
+  const universalMenuMap = await getUniversalMenuMap();
 
   // 1. Fetch KOT record
   let { data: kot, error: kotErr } = await supabase
@@ -232,7 +262,48 @@ export async function buildKotPrintDocument(
   }
 
   if (!kot) {
-    // Construct fallback KOT document if DB query returned null
+    // Try querying order_items directly by order_round_id
+    const { data: directItems } = await supabase
+      .from('order_items')
+      .select('*')
+      .eq('order_round_id', kotId);
+
+    let fallbackItems: KotPrintItem[] = [];
+    if (directItems && directItems.length > 0) {
+      fallbackItems = directItems.map((di: any, idx: number) => {
+        const miName = di.menu_item_id ? universalMenuMap.get(di.menu_item_id) : null;
+        const fbByItemId = di.menu_item_id ? fallbackCartItems?.find((c: any) => (c.menuItemId || c.id) === di.menu_item_id) : null;
+        const fbByIdx = fallbackCartItems && fallbackCartItems[idx] ? fallbackCartItems[idx] : null;
+        const fb = fbByItemId || fbByIdx;
+
+        const name =
+          (di.item_name_snapshot && di.item_name_snapshot !== 'Item' ? di.item_name_snapshot : null) ||
+          (di.item_name && di.item_name !== 'Item' ? di.item_name : null) ||
+          (di.name && di.name !== 'Item' ? di.name : null) ||
+          (miName && miName !== 'Item' ? miName : null) ||
+          fb?.itemName ||
+          fb?.name ||
+          'Item';
+
+        return {
+          name,
+          quantity: Number(di.quantity || fb?.quantity || 1),
+          itemNote: di.notes || di.item_note || fb?.itemNote || null,
+        };
+      });
+    }
+
+    if (fallbackCartItems && fallbackCartItems.length > 0) {
+      const hasValidNames = fallbackItems.some((fi) => fi.name && fi.name !== 'Item');
+      if (!hasValidNames) {
+        fallbackItems = fallbackCartItems.map((ci: any) => ({
+          name: ci.itemName || ci.name || 'Item',
+          quantity: Number(ci.quantity || 1),
+          itemNote: ci.itemNote || ci.notes || null,
+        }));
+      }
+    }
+
     return {
       kotId,
       kotNumber: kotId.slice(0, 8),
@@ -241,28 +312,45 @@ export async function buildKotPrintDocument(
       time: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
       tableNumber: 'T-1',
       floorName: 'Main Floor',
-      items: [],
+      items: fallbackItems,
       notes: null,
       isReprint,
     };
   }
 
   // 2. Fetch KOT items & Order Items
-  const { data: kotItems } = await supabase
+  let { data: kotItems } = await supabase
     .from('kot_items')
     .select('*')
-    .eq('kot_id', kotId);
-
-  const orderItemIds = (kotItems || []).map((ki: any) => ki.order_item_id);
+    .eq('kot_id', kot.id);
 
   let orderItemsMap = new Map<string, any>();
-  if (orderItemIds.length > 0) {
-    const { data: orderItems } = await supabase
+
+  if (kotItems && kotItems.length > 0) {
+    const orderItemIds = kotItems.map((ki: any) => ki.order_item_id).filter(Boolean);
+    if (orderItemIds.length > 0) {
+      const { data: orderItems } = await supabase
+        .from('order_items')
+        .select('*')
+        .in('id', orderItemIds);
+      (orderItems || []).forEach((oi: any) => orderItemsMap.set(oi.id, oi));
+    }
+  } else if (kot.order_round_id) {
+    const { data: directOrderItems } = await supabase
       .from('order_items')
       .select('*')
-      .in('id', orderItemIds);
+      .eq('order_round_id', kot.order_round_id);
 
-    (orderItems || []).forEach((oi: any) => orderItemsMap.set(oi.id, oi));
+    if (directOrderItems && directOrderItems.length > 0) {
+      kotItems = directOrderItems.map((oi: any) => ({
+        id: oi.id,
+        kot_id: kot.id,
+        order_item_id: oi.id,
+        quantity: oi.quantity,
+        notes: oi.notes,
+      }));
+      directOrderItems.forEach((oi: any) => orderItemsMap.set(oi.id, oi));
+    }
   }
 
   // 3. Fetch Order, Round, Session, Table & Floor Info
@@ -321,14 +409,40 @@ export async function buildKotPrintDocument(
   }
 
   // 4. Map Items
-  const items: KotPrintItem[] = (kotItems || []).map((ki: any) => {
+  let items: KotPrintItem[] = (kotItems || []).map((ki: any, idx: number) => {
     const oi = orderItemsMap.get(ki.order_item_id) || {};
+    const menuItemId = oi.menu_item_id || ki.menu_item_id;
+    const miName = menuItemId ? universalMenuMap.get(menuItemId) : null;
+    const fbByItemId = menuItemId ? fallbackCartItems?.find((c: any) => (c.menuItemId || c.id) === menuItemId) : null;
+    const fbByIdx = fallbackCartItems && fallbackCartItems[idx] ? fallbackCartItems[idx] : null;
+    const fb = fbByItemId || fbByIdx;
+
+    const name =
+      (oi.item_name_snapshot && oi.item_name_snapshot !== 'Item' ? oi.item_name_snapshot : null) ||
+      (oi.item_name && oi.item_name !== 'Item' ? oi.item_name : null) ||
+      (oi.name && oi.name !== 'Item' ? oi.name : null) ||
+      (miName && miName !== 'Item' ? miName : null) ||
+      fb?.itemName ||
+      fb?.name ||
+      'Item';
+
     return {
-      name: oi.item_name_snapshot || oi.item_name || oi.name || 'Item',
-      quantity: Number(ki.quantity || 1),
-      itemNote: oi.item_note || null,
+      name,
+      quantity: Number(ki.quantity || oi.quantity || fb?.quantity || 1),
+      itemNote: ki.notes || oi.notes || oi.item_note || fb?.itemNote || null,
     };
   });
+
+  if (fallbackCartItems && fallbackCartItems.length > 0) {
+    const hasValidNames = items.some((it) => it.name && it.name !== 'Item');
+    if (!hasValidNames) {
+      items = fallbackCartItems.map((ci: any) => ({
+        name: ci.itemName || ci.name || 'Item',
+        quantity: Number(ci.quantity || 1),
+        itemNote: ci.itemNote || ci.notes || null,
+      }));
+    }
+  }
 
   const kotDate = kot.created_at ? new Date(kot.created_at) : new Date();
 
@@ -345,3 +459,4 @@ export async function buildKotPrintDocument(
     isReprint,
   };
 }
+

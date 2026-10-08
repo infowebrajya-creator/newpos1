@@ -94,29 +94,24 @@ export function TablesView({ initialFloors = [], initialTables = [] }: TablesVie
   }, [tables, selectedFloorId, selectedStatus, searchQuery]);
 
   // Instant zero-lag table opening with optimistic UI + fast client router
-  const handleDirectOpenTable = async (table: TableWithSession) => {
+  const handleDirectOpenTable = (table: TableWithSession) => {
     try {
       // 1. Optimistic state update in 0 milliseconds
       setTables((prevTables) =>
         prevTables.map((t) => (t.id === table.id ? { ...t, status: 'occupied' } : t))
       );
 
-      // 2. Open table session via fast API route
-      const res = await fetch('/api/tables/open', {
+      // 2. Instant zero-delay client navigation
+      router.push(`/pos/order?tableId=${table.id}`);
+
+      // 3. Asynchronous background session creation
+      fetch('/api/tables/open', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tableId: table.id, guestCount: 2 }),
-      });
-
-      const data = await res.json();
-      const sessionId = data?.sessionId || table.id;
-
-      // 3. Fast client-side navigation without browser hard reload
-      router.push(`/pos/order?tableId=${table.id}&sessionId=${sessionId}`);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Unable to open table.';
-      alert(`Table opening error: ${msg}`);
-      fetchLatestTablesData();
+      }).catch(() => {});
+    } catch {
+      // Fallback
     }
   };
 
@@ -212,34 +207,6 @@ export function TablesView({ initialFloors = [], initialTables = [] }: TablesVie
           </button>
         </div>
 
-        {/* Center Toggle & Visual Status Legend (Matching Image 1 Colors) */}
-        <div className="flex items-center space-x-3 text-[11px] font-extrabold text-slate-800 overflow-x-auto scrollbar-none py-0.5">
-          <div className="flex items-center space-x-1.5 bg-slate-200/80 px-2.5 py-1 rounded-full text-slate-700 shrink-0">
-            <span className="w-3.5 h-3.5 rounded-full bg-[#94a3b8]" />
-            <span>Move KOT/ Items</span>
-          </div>
-
-          <span className="flex items-center space-x-1.5 shrink-0">
-            <span className="w-3.5 h-3.5 rounded-full bg-[#cbd5e1] border border-slate-400" />
-            <span>Blank Table</span>
-          </span>
-          <span className="flex items-center space-x-1.5 shrink-0">
-            <span className="w-3.5 h-3.5 rounded-full bg-[#38bdf8] border border-[#0284c7]" />
-            <span>Running Table</span>
-          </span>
-          <span className="flex items-center space-x-1.5 shrink-0">
-            <span className="w-3.5 h-3.5 rounded-full bg-[#4ade80] border border-[#16a34a]" />
-            <span>Printed Table</span>
-          </span>
-          <span className="flex items-center space-x-1.5 shrink-0">
-            <span className="w-3.5 h-3.5 rounded-full bg-[#ffedd5] border-2 border-[#f97316]" />
-            <span>Paid Table</span>
-          </span>
-          <span className="flex items-center space-x-1.5 shrink-0">
-            <span className="w-3.5 h-3.5 rounded-full bg-[#facc15] border border-[#ca8a04]" />
-            <span>Running KOT Table</span>
-          </span>
-        </div>
 
         {/* Right Floor Plan Dropdown */}
         <div className="flex items-center space-x-2 text-xs font-bold shrink-0">
