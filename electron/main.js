@@ -1,5 +1,9 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
-const path = require('path');
+import { app, BrowserWindow, ipcMain, globalShortcut } from 'electron';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 let mainWindow;
 
@@ -21,17 +25,12 @@ function createWindow() {
   });
 
   const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
-  const startUrl = isDev 
-    ? (process.env.ELECTRON_START_URL || 'http://localhost:5173') 
+  const startUrl = isDev
+    ? (process.env.ELECTRON_START_URL || 'http://localhost:5173')
     : `file://${path.join(__dirname, '../dist/index.html')}`;
 
   console.log(`[Electron Main] Loading URL: ${startUrl}`);
   mainWindow.loadURL(startUrl);
-
-  if (isDev) {
-    // Open DevTools in dev mode if needed
-    // mainWindow.webContents.openDevTools();
-  }
 
   mainWindow.on('closed', () => {
     mainWindow = null;
@@ -57,7 +56,7 @@ ipcMain.handle('get-printers', async () => {
 // 2. Direct Silent Thermal Printing
 ipcMain.handle('print-silent', async (_event, options = {}) => {
   if (!mainWindow) return { success: false, error: 'Window unavailable' };
-  
+
   const { deviceName = '', silent = true, copies = 1 } = options;
 
   return new Promise((resolve) => {
@@ -85,7 +84,6 @@ ipcMain.handle('print-silent', async (_event, options = {}) => {
 // 3. Open Cash Drawer (RJ11 Kickout Signal)
 ipcMain.handle('open-cash-drawer', async () => {
   console.log('[Electron] Triggering cash drawer pulse...');
-  // In native setup, this sends raw ESC/POS command: BEL (ASCII 7 / \x1B\x70\x00\x19\xFA)
   return { success: true, message: 'Cash drawer trigger sent' };
 });
 
@@ -100,8 +98,6 @@ ipcMain.handle('toggle-fullscreen', async () => {
 // ----------------------------------------------------
 // App Lifecycle & Shortcuts
 // ----------------------------------------------------
-const { globalShortcut } = require('electron');
-
 app.whenReady().then(() => {
   createWindow();
 
