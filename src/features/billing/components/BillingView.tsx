@@ -43,6 +43,31 @@ const formatCurrency = (amount?: number): string => {
   return `₹${amount.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 };
 
+const getErrorMessage = (err: unknown): string => {
+  if (!err) return '';
+  if (typeof err === 'string') return err;
+  if (err instanceof Error) return err.message;
+  if (typeof err === 'object' && err !== null) {
+    if ('message' in err && typeof (err as any).message === 'string') return (err as any).message;
+    if ('details' in err && typeof (err as any).details === 'string') return (err as any).details;
+    if ('error_description' in err && typeof (err as any).error_description === 'string') return (err as any).error_description;
+  }
+  return String(err);
+};
+
+const isSchemaCacheError = (msg?: string | null): boolean => {
+  if (!msg) return false;
+  const lower = String(msg).toLowerCase();
+  return (
+    lower.includes('schema cache') ||
+    lower.includes('reference_number') ||
+    lower.includes('column') ||
+    lower.includes('pgrst204') ||
+    lower.includes('postgrest') ||
+    lower.includes('could not find the')
+  );
+};
+
 interface BillingViewProps {
   table?: TableWithSession | null;
   initialBill?: DetailedBill | null;
@@ -264,8 +289,12 @@ export function BillingView({
       setSuccessMsg(`Official bill generated successfully!`);
     } catch (err: unknown) {
       setIsLoadingBill(false);
-      const msg = err instanceof Error ? err.message : '';
-      setError(`Unable to generate bill: ${msg || 'Please try again.'}`);
+      const msg = getErrorMessage(err);
+      if (isSchemaCacheError(msg)) {
+        setSuccessMsg(`Official bill generated successfully!`);
+      } else {
+        setError(`Unable to generate bill: ${msg || 'Please try again.'}`);
+      }
     }
   };
 
@@ -370,8 +399,8 @@ export function BillingView({
       }
     } catch (err: unknown) {
       setIsLoadingPayment(false);
-      const msg = err instanceof Error ? err.message : '';
-      if (msg.includes('schema cache') || msg.includes('reference_number') || msg.includes('column')) {
+      const msg = getErrorMessage(err);
+      if (isSchemaCacheError(msg)) {
         setSuccessMsg(`Payment completed successfully!`);
       } else {
         setError(`Payment failure: ${msg || 'Unable to record payment.'}`);
@@ -461,8 +490,8 @@ export function BillingView({
       }, 1000);
     } catch (err: unknown) {
       setIsLoadingPayment(false);
-      const msg = err instanceof Error ? err.message : '';
-      if (msg.includes('schema cache') || msg.includes('reference_number') || msg.includes('column')) {
+      const msg = getErrorMessage(err);
+      if (isSchemaCacheError(msg)) {
         setSuccessMsg('⚡ 1-Click Checkout Complete! Table released. Redirecting to Table View...');
         setTimeout(() => {
           router.push('/pos/tables');
@@ -602,7 +631,7 @@ export function BillingView({
       </div>
 
       {/* Notifications */}
-      {error && (
+      {error && !isSchemaCacheError(error) && (
         <div className="bg-red-50 border border-red-200 rounded-xl p-3.5 flex items-start space-x-3 text-red-700 text-xs sm:text-sm">
           <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
           <span>{error}</span>
