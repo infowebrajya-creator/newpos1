@@ -30,7 +30,9 @@ export async function saveAndBill({
     if (existingSession?.id) {
       validSessionId = existingSession.id;
     }
-  } else {
+  }
+
+  if (!validSessionId && tableSessionId) {
     const cleanNum = String(tableSessionId).replace(/^TT-|^T-/, '');
     const formattedNum = `T-${cleanNum.padStart(2, '0')}`;
     const shortFormattedNum = `T-${cleanNum}`;
@@ -384,7 +386,9 @@ export async function submitKot({ tableSessionId, cartItems = [] }: { tableSessi
     if (existingSession?.id) {
       validSessionId = existingSession.id;
     }
-  } else {
+  }
+
+  if (!validSessionId && tableSessionId) {
     const cleanNum = String(tableSessionId).replace(/^TT-|^T-/, '');
     const formattedNum = `T-${cleanNum.padStart(2, '0')}`;
     const shortFormattedNum = `T-${cleanNum}`;
