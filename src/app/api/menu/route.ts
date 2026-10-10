@@ -1,5 +1,4 @@
 import { createClient } from '@/lib/supabase/server';
-import { NextResponse } from 'next/server';
 
 export async function GET() {
   try {
@@ -20,8 +19,8 @@ export async function GET() {
       is_veg: item.is_veg !== false,
     }));
 
-    return NextResponse.json({ categories, menuItems });
+    return Response.json({ categories, menuItems });
   } catch (err: any) {
-    return NextResponse.json({ categories: [], menuItems: [], error: err?.message || 'Server error' }, { status: 500 });
+    return Response.json({ categories: [], menuItems: [], error: err?.message || 'Server error' }, { status: 500 });
   }
 }

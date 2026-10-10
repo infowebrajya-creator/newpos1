@@ -1,27 +1,19 @@
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://hajnqorvkxuhlymyfrge.supabase.co";
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "sb_publishable_W2H5R2OV1qRM1UIVVB7XXQ_QM-5R-d3";
+const supabaseUrl =
+  (import.meta as any).env?.VITE_SUPABASE_URL ||
+  (import.meta as any).env?.NEXT_PUBLIC_SUPABASE_URL ||
+  "https://hajnqorvkxuhlymyfrge.supabase.co";
 
-export const createClient = (cookieStore: Awaited<ReturnType<typeof cookies>>) => {
-  return createServerClient(
+const supabaseKey =
+  (import.meta as any).env?.VITE_SUPABASE_ANON_KEY ||
+  (import.meta as any).env?.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+  (import.meta as any).env?.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+  "sb_publishable_W2H5R2OV1qRM1UIVVB7XXQ_QM-5R-d3";
+
+export const createClient = () => {
+  return createSupabaseClient(
     supabaseUrl,
     supabaseKey,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll()
-        },
-        setAll(cookiesToSet) {
-          try {
-            cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options))
-          } catch {
-            // The `setAll` method was called from a Server Component.
-            // This can be ignored if you have middleware refreshing user sessions.
-          }
-        },
-      },
-    },
   );
 };

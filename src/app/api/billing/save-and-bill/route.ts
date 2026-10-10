@@ -1,5 +1,4 @@
 import { createClient } from '@/lib/supabase/server';
-import { NextResponse } from 'next/server';
 
 export async function POST(req: Request) {
   try {
@@ -12,7 +11,7 @@ export async function POST(req: Request) {
     } = await req.json();
 
     if (!tableSessionId) {
-      return NextResponse.json({ error: 'tableSessionId is required' }, { status: 400 });
+      return Response.json({ error: 'tableSessionId is required' }, { status: 400 });
     }
 
     const supabase = await createClient();
@@ -128,13 +127,13 @@ export async function POST(req: Request) {
         .single();
 
       if (createOrderErr) {
-        return NextResponse.json({ error: createOrderErr.message }, { status: 500 });
+        return Response.json({ error: createOrderErr.message }, { status: 500 });
       }
       order = createdOrder;
     }
 
     if (!order) {
-      return NextResponse.json({ error: 'Failed to find or create order' }, { status: 500 });
+      return Response.json({ error: 'Failed to find or create order' }, { status: 500 });
     }
 
     // 2. If cartItems has items, save them into a new order round
@@ -265,7 +264,7 @@ export async function POST(req: Request) {
           created_at: new Date().toISOString(),
         });
         if (retryErr) {
-          return NextResponse.json({ error: `Failed to insert bill: ${retryErr.message}` }, { status: 500 });
+          return Response.json({ error: `Failed to insert bill: ${retryErr.message}` }, { status: 500 });
         }
       }
     } else {
@@ -379,13 +378,13 @@ export async function POST(req: Request) {
       }
     }
 
-    return NextResponse.json({
+    return Response.json({
       success: true,
       billId,
       orderId: order.id,
       tableId: resolvedTableId,
     });
   } catch (err: any) {
-    return NextResponse.json({ error: err?.message || 'Failed to save and bill' }, { status: 500 });
+    return Response.json({ error: err?.message || 'Failed to save and bill' }, { status: 500 });
   }
 }
