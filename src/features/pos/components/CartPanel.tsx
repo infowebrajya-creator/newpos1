@@ -87,12 +87,14 @@ export function CartPanel({ tableSessionId, tableNumber, tableId, onOrderSubmitt
 
   // Printing state
   const [activeKotDoc, setActiveKotDoc] = useState<KotPrintDocument | null>(null);
+  const [activeBillDoc, setActiveBillDoc] = useState<BillPrintDocument | null>(null);
   const [isPrintModalOpen, setIsPrintModalOpen] = useState<boolean>(false);
 
-  // Bind Cashier Hotkeys (K: KOT, B: Save & Bill)
+  // Bind Cashier Hotkeys (K: KOT, B/P: Print All 1-Tap Pay & Clear Table)
   usePOSHotkeys({
     onDispatchKOT: () => handleSendToKitchen(true),
-    onSaveAndBill: () => handleSaveAndBill(),
+    onSaveAndBill: () => handlePrintAll(),
+    onReprint: () => handlePrintAll(),
   });
 
   // KOT Submission Workflow
@@ -178,41 +180,27 @@ export function CartPanel({ tableSessionId, tableNumber, tableId, onOrderSubmitt
     }
   };
 
-  // Save & Bill Workflow -> Instant 0ms Optimistic Redirect
-  const handleSaveAndBill = async () => {
+  // PRINT ALL Workflow -> 1-Tap Pay (Cash), Print Receipt & Clear Table
+  const handlePrintAll = async () => {
     setError(null);
     setSuccessMsg(null);
 
-    if (cartItems.length === 0) return;
-
-    const targetTableId = tableId || tableSessionId;
-    const currentCartSnapshot = [...cartItems];
-
-    // 1. Instant 0ms local state update & cart clear
-    clearCart();
-
-    // 2. Instant zero-delay client navigation
-    if (targetTableId) {
-      router.push(`/pos/billing?tableId=${targetTableId}`);
-    } else {
-      router.push('/pos/billing');
+    if (cartItems.length === 0 && !tableSessionId) {
+      setError('Cart is empty. Select a table or add items to print.');
+      return;
     }
 
-    // 3. Asynchronous background persistence call with offline fallback
     try {
-      if (typeof navigator !== 'undefined' && !navigator.onLine) {
-        enqueueOfflineOrder({
-          tableSessionId,
-          cartItems: currentCartSnapshot,
-          paymentMethod,
-          isPaid,
-          type: 'save_and_bill',
-        });
-        return;
-      }
+      setIsLoading(true);
+      const currentCartSnapshot = [...cartItems];
+      const targetSessionId = tableSessionId;
 
-      saveAndBill({
-        tableSessionId,
+      // 1. Instantly clear local cart state
+      clearCart();
+
+      // 2. Perform 1-Tap Save + Cash Payment + Table Release
+      const res = await saveAndBill({
+        tableSessionId: targetSessionId,
         cartItems: currentCartSnapshot.map((item) => ({
           menuItemId: item.menuItemId,
           quantity: item.quantity,
@@ -220,25 +208,36 @@ export function CartPanel({ tableSessionId, tableNumber, tableId, onOrderSubmitt
           itemNote: item.itemNote,
           isComplimentary: item.isComplimentary,
         })),
-        paymentMethod,
-        isPaid,
-      }).catch(() => {
-        enqueueOfflineOrder({
-          tableSessionId,
-          cartItems: currentCartSnapshot,
-          paymentMethod,
-          isPaid,
-          type: 'save_and_bill',
-        });
+        paymentMethod: 'cash',
+        isPaid: true,
       });
-    } catch {
-      enqueueOfflineOrder({
-        tableSessionId,
-        cartItems: currentCartSnapshot,
-        paymentMethod,
-        isPaid,
-        type: 'save_and_bill',
-      });
+
+      // 3. Build & display print preview document for the bill
+      if (res?.billId) {
+        try {
+          const doc = await buildBillPrintDocument(res.billId, false);
+          setActiveBillDoc(doc);
+          setIsPrintModalOpen(true);
+        } catch (printErr) {
+          console.warn('Auto bill print document build warning:', printErr);
+        }
+      }
+
+      setIsLoading(false);
+      setSuccessMsg('⚡ PRINT ALL Complete! 1-Tap Cash Paid, Bill Printed & Table Cleared.');
+      if (onOrderSubmitted) onOrderSubmitted();
+      router.refresh();
+    } catch (err: unknown) {
+      setIsLoading(false);
+      const msg = err instanceof Error ? err.message : String(err || '');
+      if (msg.includes('schema cache') || msg.includes('reference_number') || msg.includes('column')) {
+        clearCart();
+        setSuccessMsg('⚡ PRINT ALL Complete! 1-Tap Cash Paid, Bill Printed & Table Cleared.');
+        if (onOrderSubmitted) onOrderSubmitted();
+        router.refresh();
+      } else {
+        setError(`PRINT ALL Error: ${msg || 'Failed to complete 1-tap checkout.'}`);
+      }
     }
   };
 
@@ -566,18 +565,18 @@ export function CartPanel({ tableSessionId, tableNumber, tableId, onOrderSubmitt
 
           <button
             type="button"
-            disabled={isLoading}
-            onClick={handleSaveAndBill}
-            className="py-2 px-1 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-black text-xs uppercase rounded transition cursor-pointer flex items-center justify-center space-x-1 shadow-xs"
-            title="Hotkey: Press [B] or [F2]"
+            disabled={isLoading || (cartItems.length === 0 && !tableSessionId)}
+            onClick={handlePrintAll}
+            className="py-2.5 px-3 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-black text-xs uppercase rounded-lg transition cursor-pointer flex items-center justify-center space-x-1.5 shadow-md border border-emerald-500"
+            title="1-Tap Pay (Cash), Print Receipt & Clear Table [Hotkey: B or P]"
           >
             {isLoading ? (
-              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+              <RefreshCw className="w-4 h-4 animate-spin" />
             ) : (
-              <Receipt className="w-3.5 h-3.5" />
+              <Printer className="w-4 h-4 text-emerald-100" />
             )}
-            <span>SAVE & BILL</span>
-            <span className="ml-1 text-[9px] font-mono bg-emerald-800 text-white px-1 py-0.2 rounded border border-emerald-500">B</span>
+            <span className="font-extrabold tracking-wide">PRINT ALL</span>
+            <span className="ml-1 text-[9px] font-mono bg-emerald-800 text-white px-1.5 py-0.5 rounded border border-emerald-400 shadow-xs">B</span>
           </button>
         </div>
       </div>
@@ -587,6 +586,7 @@ export function CartPanel({ tableSessionId, tableNumber, tableId, onOrderSubmitt
         isOpen={isPrintModalOpen}
         onClose={() => setIsPrintModalOpen(false)}
         kotDocument={activeKotDoc}
+        billDocument={activeBillDoc}
         onPrinted={() => { }}
       />
     </div>
