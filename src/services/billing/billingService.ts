@@ -54,7 +54,7 @@ export async function recordPayment(
   try {
     const [{ data: billData }, { data: existingPayments }] = await Promise.all([
       supabase.from('bills').select('grand_total, final_amount, subtotal').eq('id', billId).maybeSingle(),
-      supabase.from('payments').select('id, amount, status').eq('bill_id', billId),
+      supabase.from('payments').select('id, amount').eq('bill_id', billId),
     ]);
 
     const grandTotal = Number(billData?.grand_total ?? billData?.final_amount ?? billData?.subtotal ?? 0);
@@ -331,7 +331,7 @@ export async function getAllBills(): Promise<DetailedBill[]> {
 
   const [billsRes, paymentsRes] = await Promise.all([
     supabase.from('bills').select('*').order('created_at', { ascending: false }).limit(50),
-    supabase.from('payments').select('bill_id, amount, status'),
+    supabase.from('payments').select('bill_id, amount'),
   ]);
 
   if (billsRes.error || !billsRes.data) {

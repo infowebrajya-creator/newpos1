@@ -194,7 +194,7 @@ export async function getServerAllBills(): Promise<DetailedBill[]> {
 
   const [billsRes, paymentsRes] = await Promise.all([
     supabase.from('bills').select('*').order('created_at', { ascending: false }).limit(50),
-    supabase.from('payments').select('bill_id, amount, status'),
+    supabase.from('payments').select('bill_id, amount'),
   ]);
 
   if (billsRes.error || !billsRes.data) {
