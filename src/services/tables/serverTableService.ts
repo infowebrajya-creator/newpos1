@@ -119,12 +119,14 @@ export async function getServerTablesWithActiveSessions(): Promise<TableWithSess
     .map((table) => {
       const session = sessionMap.get(table.id) || null;
       const activeOrder = session ? activeOrderMap.get(session.id) || null : null;
-      const effectiveStatus = session && table.status === 'available' ? 'occupied' : table.status;
+      const effectiveStatus = activeOrder
+        ? (table.status === 'available' ? 'occupied' : table.status)
+        : 'available';
       return {
         ...table,
         status: effectiveStatus as any,
         floor_name: table.floor_id ? floorMap.get(table.floor_id) || null : null,
-        active_session: session,
+        active_session: activeOrder ? session : null,
         active_order: activeOrder,
       };
     })

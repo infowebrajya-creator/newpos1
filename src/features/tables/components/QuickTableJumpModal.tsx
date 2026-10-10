@@ -192,7 +192,7 @@ export function QuickTableJumpModal({ isOpen, onClose, onSelectTable }: QuickTab
           ) : (
             filteredTables.map((table, idx) => {
               const isSelected = idx === selectedIndex;
-              const isOccupied = table.active_session || table.status === 'occupied';
+              const isOccupied = !!(table.active_order);
               const cleanName = table.table_number.startsWith('T-')
                 ? `Table ${table.table_number.replace(/^T-0*/i, '')}`
                 : table.table_number;

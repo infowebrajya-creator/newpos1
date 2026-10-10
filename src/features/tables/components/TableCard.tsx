@@ -28,7 +28,7 @@ export const TableCard = React.memo(function TableCard({ table, onOpenTable, onS
       ? 'payment_pending'
       : rawStatus === 'reserved'
       ? 'reserved'
-      : active_session || rawStatus === 'occupied' || rawStatus === 'running'
+      : active_order
       ? 'occupied'
       : 'available';
 
