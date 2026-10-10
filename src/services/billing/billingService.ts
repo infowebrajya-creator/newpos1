@@ -69,22 +69,7 @@ export async function recordPayment(
     // Continue if guard check fails
   }
 
-  try {
-    const { data, error } = await supabase.rpc('record_payment', {
-      p_bill_id: billId,
-      p_method: method,
-      p_amount: amount,
-      p_reference_number: referenceNumber?.trim() || null,
-    });
-
-    if (!error && data) {
-      return data as string;
-    }
-  } catch {
-    // RPC failed or missing
-  }
-
-  // Direct table insert fallback with schema safety
+  // Schema-safe direct payment insertion
   const paymentId = crypto.randomUUID();
   let { error: payErr } = await supabase.from('payments').insert({
     id: paymentId,
@@ -104,12 +89,7 @@ export async function recordPayment(
     payErr = fallbackRes.error;
   }
 
-  if (payErr) {
-    // Non-blocking: if payment record insertion fails, proceed with bill status update
-    console.warn('Payment record insert warning:', payErr.message);
-  }
-
-  // Update bills table status and payment_status
+  // Update bills table status and payment_status to paid
   await supabase
     .from('bills')
     .update({ payment_status: 'paid', status: 'paid', updated_at: new Date().toISOString() })

@@ -32,7 +32,7 @@ const MenuItemCard = React.memo(function MenuItemCard({ item, qtyInCart, onAddIt
         qtyInCart > 0
           ? 'border-red-600 ring-1 ring-red-600/30 bg-red-50/30'
           : 'border-slate-200 hover:border-slate-400'
-      } rounded-lg p-2.5 flex flex-col justify-between transition active:scale-[0.97] cursor-pointer select-none shadow-2xs min-h-[95px]`}
+      } rounded-lg p-2.5 flex flex-col justify-between transition active:scale-[0.97] cursor-pointer select-none shadow-2xs min-h-[105px]`}
     >
       <div className="space-y-1">
         {/* Top Badges: Veg/Non-Veg & Quantity */}
@@ -65,19 +65,42 @@ const MenuItemCard = React.memo(function MenuItemCard({ item, qtyInCart, onAddIt
         </h4>
       </div>
 
-      {/* Price & Add Button */}
+      {/* Price & Quick Quantity Buttons (+1, +2, +5) */}
       <div className="flex items-center justify-between pt-1.5 mt-1 border-t border-slate-100">
         <span className="font-black text-slate-900 text-xs sm:text-sm">
           {formatPrice(item.price)}
         </span>
-        <button
-          type="button"
-          className={`w-6 h-6 rounded-md flex items-center justify-center text-xs font-black transition ${
-            qtyInCart > 0 ? 'bg-red-600 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-          }`}
-        >
-          +
-        </button>
+        <div className="flex items-center space-x-1" onClick={(e) => e.stopPropagation()}>
+          <button
+            type="button"
+            onClick={() => onAddItem(item)}
+            className="px-1.5 py-0.5 rounded bg-slate-100 hover:bg-red-600 hover:text-white text-slate-800 text-[10px] font-black transition"
+            title="Add 1"
+          >
+            +1
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              onAddItem(item);
+              onAddItem(item);
+            }}
+            className="px-1.5 py-0.5 rounded bg-slate-100 hover:bg-red-600 hover:text-white text-slate-800 text-[10px] font-black transition hidden sm:inline-block"
+            title="Add 2"
+          >
+            +2
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              for (let i = 0; i < 5; i++) onAddItem(item);
+            }}
+            className="px-1.5 py-0.5 rounded bg-slate-100 hover:bg-red-600 hover:text-white text-slate-800 text-[10px] font-black transition hidden sm:inline-block"
+            title="Add 5"
+          >
+            +5
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -126,6 +149,15 @@ export const MenuPanel = React.memo(function MenuPanel({
     return map;
   }, [cartItems]);
 
+  // Auto-focus search input on mount for 0-mouse cashier operation
+  const searchInputRef = React.useRef<HTMLInputElement>(null);
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      searchInputRef.current?.focus();
+    }, 100);
+    return () => clearTimeout(timer);
+  }, []);
+
   return (
     <div className="flex flex-col h-full bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs">
       {/* Category Tabs & Search Bar Header */}
@@ -134,6 +166,7 @@ export const MenuPanel = React.memo(function MenuPanel({
           <div className="relative sm:col-span-8">
             <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
+              ref={searchInputRef}
               id="pos-menu-search-input"
               type="text"
               placeholder="Search Item (Paneer, Rice, Naan)..."
