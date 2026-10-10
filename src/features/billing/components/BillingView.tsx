@@ -180,6 +180,7 @@ export function BillingView({
   // Refresh billing data for active table session
   const refreshBillingData = useCallback(async () => {
     if (!tableSessionId) return;
+    setError(null);
 
     try {
       const [orderData, existingBill] = await Promise.all([
