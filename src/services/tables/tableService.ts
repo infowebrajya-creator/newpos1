@@ -1,18 +1,28 @@
 import { createClient } from '@/lib/supabase/client';
+import { openTable } from '@/services/apiServices';
 import { Floor, RestaurantTable, TableSession, TableWithSession, TableStats } from '@/types/tables';
+
+let floorsCache: { data: Floor[]; timestamp: number } | null = null;
 
 /**
  * Fetch all active floors
  */
 export async function getFloors(): Promise<Floor[]> {
+  const now = Date.now();
+  if (floorsCache && now - floorsCache.timestamp < 30000) {
+    return floorsCache.data;
+  }
+
   const supabase = createClient();
   const { data, error } = await supabase.from('floors').select('*');
 
   if (error || !data) {
-    return [];
+    return floorsCache?.data || [];
   }
 
-  return (data as Floor[]).filter((f) => f.is_active !== false);
+  const activeFloors = (data as Floor[]).filter((f) => f.is_active !== false);
+  floorsCache = { data: activeFloors, timestamp: now };
+  return activeFloors;
 }
 
 /**
@@ -179,18 +189,10 @@ export async function getTablesWithActiveSessions(): Promise<TableWithSession[]>
  * Open a new table session using public.open_table_session RPC
  */
 export async function openTableSession(tableId: string, guestCount: number = 2): Promise<string> {
-  // 1. Try server API route endpoint first (bypasses RLS completely)
+  // 1. Try client API service
   try {
-    const res = await fetch('/api/tables/open', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tableId, guestCount }),
-    });
-
-    if (res.ok) {
-      const json = await res.json();
-      if (json.sessionId) return json.sessionId;
-    }
+    const json = await openTable({ tableId, guestCount });
+    if (json.sessionId) return json.sessionId;
   } catch {
     // Fallback to client SDK
   }

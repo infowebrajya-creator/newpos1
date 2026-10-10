@@ -4,12 +4,14 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { getPrinterConfig, savePrinterConfig } from '@/services/printing/printService';
 import { getRestaurantSettings, updateRestaurantSettings } from '@/services/settings/settingsService';
 import { formatEscposBill, formatEscposKot } from '@/services/printing/escpos/escposFormatter';
+import { generateBillHtml, generateKotHtml } from '@/services/printing/html/htmlReceiptFormatter';
 import { BillPrintDocument, KotPrintDocument } from '@/types/printing';
 import { Receipt, Printer, Save, CheckCircle2, RefreshCw, Sliders, FileText } from 'lucide-react';
 
 export function ReceiptFormatDesigner() {
   const [config, setConfig] = useState(getPrinterConfig());
   const [activePreviewTab, setActivePreviewTab] = useState<'bill' | 'kot'>('bill');
+  const [previewMode, setPreviewMode] = useState<'html' | 'escpos'>('html');
   const [savedSuccess, setSavedSuccess] = useState(false);
 
   // Editable receipt metadata fields
@@ -141,6 +143,14 @@ export function ReceiptFormatDesigner() {
 
   const liveKotText = useMemo(() => {
     return formatEscposKot(demoKotDoc, config);
+  }, [demoKotDoc, config]);
+
+  const liveBillHtml = useMemo(() => {
+    return generateBillHtml(demoBillDoc, config);
+  }, [demoBillDoc, config]);
+
+  const liveKotHtml = useMemo(() => {
+    return generateKotHtml(demoKotDoc, config);
   }, [demoKotDoc, config]);
 
   return (
@@ -401,7 +411,7 @@ export function ReceiptFormatDesigner() {
         {/* RIGHT COLUMN: LIVE REAL-TIME THERMAL SIMULATOR PANEL (5 cols) */}
         <div className="lg:col-span-5 bg-white border border-slate-200 rounded-xl p-4 sm:p-5 space-y-4 shadow-xs sticky top-20">
           {/* PREVIEW TABS HEADER */}
-          <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+          <div className="flex flex-col space-y-2 border-b border-slate-200 pb-3">
             <div className="flex items-center space-x-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs font-bold w-full">
               <button
                 type="button"
@@ -413,7 +423,7 @@ export function ReceiptFormatDesigner() {
                 }`}
               >
                 <Receipt className="w-3.5 h-3.5" />
-                <span>Bill Receipt Preview</span>
+                <span>Bill Receipt</span>
               </button>
 
               <button
@@ -426,51 +436,63 @@ export function ReceiptFormatDesigner() {
                 }`}
               >
                 <Printer className="w-3.5 h-3.5" />
-                <span>KOT Ticket Preview</span>
+                <span>KOT Ticket</span>
+              </button>
+            </div>
+
+            {/* Sub-toggle for Preview Mode */}
+            <div className="flex bg-slate-200/70 p-0.5 rounded-lg text-[11px] font-extrabold text-slate-700">
+              <button
+                type="button"
+                onClick={() => setPreviewMode('html')}
+                className={`flex-1 py-1 rounded-md transition ${
+                  previewMode === 'html' ? 'bg-white text-slate-900 shadow-2xs' : 'hover:text-slate-900'
+                }`}
+              >
+                HTML Thermal View
+              </button>
+              <button
+                type="button"
+                onClick={() => setPreviewMode('escpos')}
+                className={`flex-1 py-1 rounded-md transition ${
+                  previewMode === 'escpos' ? 'bg-white text-slate-900 shadow-2xs' : 'hover:text-slate-900'
+                }`}
+              >
+                ESC/POS Monospace Text
               </button>
             </div>
           </div>
 
           {/* REAL THERMAL PAPER SIMULATION BOX */}
-          {activePreviewTab === 'bill' ? (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-xs text-slate-500 font-bold">
-                <span>Live 80mm/58mm Thermal Print Simulation</span>
-                <span className="font-mono text-[10px] uppercase font-black bg-amber-100 text-amber-800 px-2 py-0.5 rounded border border-amber-300">
-                  {config.paperWidth} PAPER
-                </span>
-              </div>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-xs text-slate-500 font-bold">
+              <span>Live {config.paperWidth} Thermal Print Simulation</span>
+              <span className="font-mono text-[10px] uppercase font-black bg-amber-100 text-amber-800 px-2 py-0.5 rounded border border-amber-300">
+                {config.paperWidth} PAPER
+              </span>
+            </div>
 
-              <div className="flex justify-center bg-slate-100/70 p-3 sm:p-4 rounded-2xl border border-slate-200">
+            <div className="flex justify-center bg-slate-100/70 p-3 sm:p-4 rounded-2xl border border-slate-200">
+              {previewMode === 'html' ? (
+                <div className="max-h-[520px] overflow-y-auto bg-slate-200/50 p-2 rounded-xl border border-slate-300">
+                  <div
+                    className="shadow-md mx-auto"
+                    dangerouslySetInnerHTML={{
+                      __html: activePreviewTab === 'bill' ? liveBillHtml : liveKotHtml,
+                    }}
+                  />
+                </div>
+              ) : (
                 <div
                   className={`bg-[#fefce8] text-slate-900 border-2 border-dashed border-amber-300 rounded-xl p-4 font-mono text-xs shadow-md max-h-[520px] overflow-y-auto whitespace-pre leading-relaxed select-text font-semibold mx-auto ${
                     config.paperWidth === '58mm' ? 'w-[280px]' : 'w-[370px]'
                   }`}
                 >
-                  {liveBillText}
+                  {activePreviewTab === 'bill' ? liveBillText : liveKotText}
                 </div>
-              </div>
+              )}
             </div>
-          ) : (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-xs text-slate-500 font-bold">
-                <span>Live Kitchen Order Ticket (KOT) Simulation</span>
-                <span className="font-mono text-[10px] uppercase font-black bg-red-100 text-red-800 px-2 py-0.5 rounded border border-red-300">
-                  {config.paperWidth} KOT TICKET
-                </span>
-              </div>
-
-              <div className="flex justify-center bg-slate-100/70 p-3 sm:p-4 rounded-2xl border border-slate-200">
-                <div
-                  className={`bg-white text-slate-900 border-2 border-dashed border-red-400 rounded-xl p-4 font-mono text-xs shadow-md max-h-[520px] overflow-y-auto whitespace-pre leading-relaxed select-text font-semibold mx-auto ${
-                    config.paperWidth === '58mm' ? 'w-[280px]' : 'w-[370px]'
-                  }`}
-                >
-                  {liveKotText}
-                </div>
-              </div>
-            </div>
-          )}
+          </div>
 
           <div className="pt-2 border-t border-slate-200 flex items-center justify-between text-xs text-slate-500 font-medium">
             <span>⚡ Changes update live in 0ms</span>

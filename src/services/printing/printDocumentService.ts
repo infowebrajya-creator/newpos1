@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/client';
+import { fetchMenu } from '@/services/apiServices';
 import { BillPrintDocument, KotPrintDocument, BillPrintItem, KotPrintItem } from '@/types/printing';
 import { getRestaurantSettings } from '@/services/settings/settingsService';
 
@@ -27,16 +28,13 @@ async function getUniversalMenuMap(): Promise<Map<string, string>> {
 
   if (map.size === 0) {
     try {
-      const res = await fetch('/api/menu');
-      if (res.ok) {
-        const json = await res.json();
-        const list = json.menuItems || json.items || [];
-        list.forEach((m: any) => {
-          if (m.id) {
-            map.set(m.id, m.name || m.item_name || 'Item');
-          }
-        });
-      }
+      const json = await fetchMenu();
+      const list = json.menuItems || [];
+      list.forEach((m: any) => {
+        if (m.id) {
+          map.set(m.id, m.name || m.item_name || 'Item');
+        }
+      });
     } catch {
       // Ignore fetch error
     }
@@ -90,28 +88,54 @@ export async function buildBillPrintDocument(
   const rawItems = itemsRes.data || [];
   const payments = paymentsRes.data || [];
 
-  // 2. Fetch Session & Table Info
-  let tableNumber = 'T-';
+  // 2. Fetch Session & Table & Customer Info
+  let tableNumber = 'T-01';
   let guestCount = 1;
+  let customerName = 'Walk-in Customer';
+  let orderNumber = bill.bill_number || bill.id.slice(0, 8);
+  let cashierName = 'Cashier';
 
   if (bill.table_session_id) {
     const { data: session } = await supabase
       .from('table_sessions')
-      .select('guest_count, table_id')
+      .select('guest_count, table_id, customer_id')
       .eq('id', bill.table_session_id)
       .single();
 
     if (session) {
       guestCount = session.guest_count || 1;
-      const { data: table } = await supabase
-        .from('restaurant_tables')
-        .select('table_number')
-        .eq('id', session.table_id)
-        .single();
+      if (session.table_id) {
+        const { data: table } = await supabase
+          .from('restaurant_tables')
+          .select('table_number')
+          .eq('id', session.table_id)
+          .single();
 
-      if (table) {
-        tableNumber = table.table_number;
+        if (table) {
+          tableNumber = table.table_number;
+        }
       }
+      if (session.customer_id) {
+        const { data: cust } = await supabase
+          .from('customers')
+          .select('name, full_name')
+          .eq('id', session.customer_id)
+          .single();
+        if (cust) {
+          customerName = cust.name || cust.full_name || customerName;
+        }
+      }
+    }
+  }
+
+  if (bill.order_id) {
+    const { data: ord } = await supabase
+      .from('orders')
+      .select('order_number')
+      .eq('id', bill.order_id)
+      .single();
+    if (ord && ord.order_number) {
+      orderNumber = ord.order_number;
     }
   }
 
@@ -166,12 +190,17 @@ export async function buildBillPrintDocument(
       (oi?.is_complimentary ? 0 : unitPrice * quantity)
     );
 
+    // Detect veg status from name
+    const isVeg = !/chicken|mutton|fish|egg|pork|beef|prawn|meat|tikka biryani/i.test(name);
+
     return {
       name,
       quantity,
       unitPrice,
       lineTotal,
       isComplimentary: item.is_complimentary ?? oi?.is_complimentary ?? (unitPrice === 0),
+      isVeg,
+      itemNote: item.notes || oi?.notes || null,
     };
   });
 
@@ -182,12 +211,15 @@ export async function buildBillPrintDocument(
       const quantity = Number(oi.quantity || 1);
       const unitPrice = Number(oi.unit_price || 0);
       const lineTotal = oi.is_complimentary ? 0 : unitPrice * quantity;
+      const isVeg = !/chicken|mutton|fish|egg|pork|beef|prawn|meat|tikka biryani/i.test(name);
       return {
         name,
         quantity,
         unitPrice,
         lineTotal,
         isComplimentary: !!oi.is_complimentary,
+        isVeg,
+        itemNote: oi.notes || null,
       };
     });
   }
@@ -206,31 +238,43 @@ export async function buildBillPrintDocument(
 
   const billDate = bill.created_at ? new Date(bill.created_at) : new Date();
 
+  const taxAmount = Number(bill.tax_amount || 0);
+  const taxEnabled = settings.tax_enabled === true || settings.show_gstin === true;
+
   return {
     billId: bill.id,
     billNumber: bill.bill_number || bill.id.slice(0, 8),
+    memoNumber: `SR-${bill.bill_number || bill.id.slice(0, 8)}`,
     date: billDate.toLocaleDateString('en-IN'),
     time: billDate.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
     tableNumber,
     guestCount,
-    restaurantName: (settings as any).restaurant_name || settings.name || 'WEBRAJYA RESTAURANT',
-    legalName: settings.legal_name || null,
-    address: settings.address || null,
-    phone: settings.phone || null,
-    gstin: settings.gstin || null,
-    fssaiLicense: settings.fssai_license || null,
-    receiptHeader: settings.receipt_header || null,
-    receiptFooter: settings.receipt_footer || null,
+    restaurantName: (settings as any).restaurant_name || settings.name || 'WEBRAJYA POS RESTO',
+    legalName: settings.legal_name || 'L N FOODS',
+    estdYear: (settings as any).estd_year || '1975',
+    address: settings.address || 'B-10, Central MIDC Road, Hingna Industrial Area, Nagpur',
+    phone: settings.phone || '+91 7020796007',
+    gstin: settings.gstin || '27AAAAA0000A1Z5',
+    fssaiLicense: settings.fssai_license || '11520056000020',
+    receiptHeader: settings.receipt_header || 'Taste That Brings You Back!',
+    receiptFooter: settings.receipt_footer || 'Thank You! Visit Again',
     items,
     subtotal: Number(bill.subtotal || 0),
     discountAmount: Number(bill.discount_amount || 0),
-    taxAmount: Number(bill.tax_amount || 0),
+    taxAmount,
+    cgstRate: 2.5,
+    cgstAmount: taxAmount / 2,
+    sgstRate: 2.5,
+    sgstAmount: taxAmount / 2,
     roundingAmount: Number(bill.rounding_amount || 0),
     grandTotal: Number(bill.grand_total || 0),
     paymentMethod,
     paidAmount,
+    customerName,
+    orderNumber,
+    cashierName,
     isReprint,
-    taxEnabled: settings.tax_enabled === true,
+    taxEnabled,
   };
 }
 
@@ -354,9 +398,13 @@ export async function buildKotPrintDocument(
   }
 
   // 3. Fetch Order, Round, Session, Table & Floor Info
-  let tableNumber = 'T-';
+  let tableNumber = kot.table_number || 'T-01';
   let floorName: string | null = null;
   let roundNumber: number | null = null;
+  let orderNumber: string = kot.kot_number || kot.id.slice(0, 8);
+  let orderType = 'DINE-IN';
+  let captainName = 'Admin';
+  let queueToken = orderNumber;
 
   if (kot.order_round_id) {
     const { data: round } = await supabase
@@ -373,34 +421,44 @@ export async function buildKotPrintDocument(
   if (kot.order_id) {
     const { data: order } = await supabase
       .from('orders')
-      .select('table_session_id')
+      .select('table_session_id, order_number, order_type')
       .eq('id', kot.order_id)
       .single();
 
-    if (order && order.table_session_id) {
-      const { data: session } = await supabase
-        .from('table_sessions')
-        .select('table_id')
-        .eq('id', order.table_session_id)
-        .single();
+    if (order) {
+      if (order.order_number) {
+        orderNumber = order.order_number;
+        queueToken = order.order_number;
+      }
+      if (order.order_type) {
+        orderType = order.order_type;
+      }
 
-      if (session && session.table_id) {
-        const { data: table } = await supabase
-          .from('restaurant_tables')
-          .select('table_number, floor_id')
-          .eq('id', session.table_id)
+      if (order.table_session_id) {
+        const { data: session } = await supabase
+          .from('table_sessions')
+          .select('table_id')
+          .eq('id', order.table_session_id)
           .single();
 
-        if (table) {
-          tableNumber = table.table_number;
-          if (table.floor_id) {
-            const { data: floor } = await supabase
-              .from('floors')
-              .select('name')
-              .eq('id', table.floor_id)
-              .single();
-            if (floor) {
-              floorName = floor.name;
+        if (session && session.table_id) {
+          const { data: table } = await supabase
+            .from('restaurant_tables')
+            .select('table_number, floor_id')
+            .eq('id', session.table_id)
+            .single();
+
+          if (table) {
+            tableNumber = table.table_number;
+            if (table.floor_id) {
+              const { data: floor } = await supabase
+                .from('floors')
+                .select('name')
+                .eq('id', table.floor_id)
+                .single();
+              if (floor) {
+                floorName = floor.name;
+              }
             }
           }
         }
@@ -426,36 +484,57 @@ export async function buildKotPrintDocument(
       fb?.name ||
       'Item';
 
+    const isVeg = !/chicken|mutton|fish|egg|pork|beef|prawn|meat|tikka biryani/i.test(name);
+
     return {
       name,
       quantity: Number(ki.quantity || oi.quantity || fb?.quantity || 1),
       itemNote: ki.notes || oi.notes || oi.item_note || fb?.itemNote || null,
+      isVeg,
     };
   });
 
   if (fallbackCartItems && fallbackCartItems.length > 0) {
     const hasValidNames = items.some((it) => it.name && it.name !== 'Item');
     if (!hasValidNames) {
-      items = fallbackCartItems.map((ci: any) => ({
-        name: ci.itemName || ci.name || 'Item',
-        quantity: Number(ci.quantity || 1),
-        itemNote: ci.itemNote || ci.notes || null,
-      }));
+      items = fallbackCartItems.map((ci: any) => {
+        const name = ci.itemName || ci.name || 'Item';
+        const isVeg = !/chicken|mutton|fish|egg|pork|beef|prawn|meat|tikka biryani/i.test(name);
+        return {
+          name,
+          quantity: Number(ci.quantity || 1),
+          itemNote: ci.itemNote || ci.notes || null,
+          isVeg,
+        };
+      });
     }
   }
+
+  const hasVeg = items.some((it) => it.isVeg);
+  const badges: string[] = [];
+  if (hasVeg) badges.push('PURE VEG');
 
   const kotDate = kot.created_at ? new Date(kot.created_at) : new Date();
 
   return {
     kotId: kot.id,
     kotNumber: kot.kot_number || kot.id.slice(0, 8),
+    copyIndex: 1,
+    totalCopies: 1,
     roundNumber,
     date: kotDate.toLocaleDateString('en-IN'),
     time: kotDate.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
     tableNumber,
+    orderNumber,
+    orderType,
+    captainName,
+    queueToken: `#${queueToken.replace(/^#/, '')}`,
+    badges,
     floorName,
     items,
     notes: kot.notes || null,
+    printedAt: kotDate.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+    printCount: (kot.print_count || 0) + 1,
     isReprint,
   };
 }

@@ -1,13 +1,14 @@
 import { PrinterAdapter } from './printerAdapter';
 import { BillPrintDocument, KotPrintDocument, PrinterConfig, PrintResult } from '@/types/printing';
 import { formatEscposBill, formatEscposKot } from './escpos/escposFormatter';
+import { generateBillHtml, generateKotHtml } from './html/htmlReceiptFormatter';
 
 /**
  * Universal Auto-Detect Browser Print Adapter (100% Thermal Printer Compatibility)
  * Uses native OS/Browser printing queue + WebUSB hardware detection.
  * Works with Epson, TVS, Xprinter, Everycom, Retsol, HOIN, Posiflex, Zebra, Star Micronics, etc.
  */
-function executeSilentPrint(rawText: string, paperWidth: string, docTitle: string) {
+export function executeSilentHtmlPrint(htmlContent: string, paperWidth: string, docTitle: string) {
   if (typeof window === 'undefined') return;
 
   try {
@@ -42,17 +43,22 @@ function executeSilentPrint(rawText: string, paperWidth: string, docTitle: strin
               }
               body {
                 font-family: 'Courier New', Courier, monospace;
-                font-size: 11px;
-                width: ${is58mm ? '58mm' : '80mm'};
                 margin: 0;
-                padding: 4px;
-                white-space: pre;
+                padding: 0;
                 background: #fff;
                 color: #000;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+              }
+              @media print {
+                body {
+                  color: #000 !important;
+                  background: #fff !important;
+                }
               }
             </style>
           </head>
-          <body>${rawText}</body>
+          <body>${htmlContent}</body>
         </html>
       `);
       iframeDoc.close();
@@ -74,7 +80,8 @@ function executeSilentPrint(rawText: string, paperWidth: string, docTitle: strin
 export class UniversalPrinterAdapter implements PrinterAdapter {
   async printBill(doc: BillPrintDocument, config: PrinterConfig): Promise<PrintResult> {
     const rawText = formatEscposBill(doc, config);
-    executeSilentPrint(rawText, config.paperWidth, `Bill #${doc.billNumber}`);
+    const htmlContent = generateBillHtml(doc, config);
+    executeSilentHtmlPrint(htmlContent, config.paperWidth, `Bill #${doc.billNumber}`);
 
     return {
       success: true,
@@ -85,7 +92,8 @@ export class UniversalPrinterAdapter implements PrinterAdapter {
 
   async printKot(doc: KotPrintDocument, config: PrinterConfig): Promise<PrintResult> {
     const rawText = formatEscposKot(doc, config);
-    executeSilentPrint(rawText, config.paperWidth, `KOT #${doc.kotNumber}`);
+    const htmlContent = generateKotHtml(doc, config);
+    executeSilentHtmlPrint(htmlContent, config.paperWidth, `KOT #${doc.kotNumber}`);
 
     return {
       success: true,

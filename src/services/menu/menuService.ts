@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/client';
+import { fetchMenu } from '@/services/apiServices';
 import { MenuCategory, MenuItem } from '@/types/menu';
 
 /**
@@ -26,14 +27,11 @@ export async function getAllMenuCategories(): Promise<MenuCategory[]> {
     return data as MenuCategory[];
   }
 
-  // Fallback to server API endpoint
+  // Fallback to client service
   try {
-    const res = await fetch('/api/menu');
-    if (res.ok) {
-      const json = await res.json();
-      if (json.categories && json.categories.length > 0) {
-        return json.categories as MenuCategory[];
-      }
+    const json = await fetchMenu();
+    if (json.categories && json.categories.length > 0) {
+      return json.categories as MenuCategory[];
     }
   } catch {
     // Ignore fetch error
@@ -66,14 +64,11 @@ export async function getAllMenuItems(): Promise<MenuItem[]> {
     })) as MenuItem[];
   }
 
-  // Fallback to server API endpoint
+  // Fallback to client service
   try {
-    const res = await fetch('/api/menu');
-    if (res.ok) {
-      const json = await res.json();
-      if (json.menuItems && json.menuItems.length > 0) {
-        return json.menuItems as MenuItem[];
-      }
+    const json = await fetchMenu();
+    if (json.menuItems && json.menuItems.length > 0) {
+      return json.menuItems as MenuItem[];
     }
   } catch {
     // Ignore fetch error

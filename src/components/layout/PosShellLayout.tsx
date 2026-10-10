@@ -7,7 +7,7 @@ import { Sidebar } from '@/components/layout/Sidebar';
 import { MobileBottomNav } from '@/components/layout/MobileBottomNav';
 import { AuthUser, UserProfile, RestaurantSettings } from '@/types';
 import { signOut } from '@/services/auth/authService';
-import { useRouter } from 'next/navigation';
+import { useRouter } from '@/lib/navigation';
 import { QuickTableJumpModal } from '@/features/tables/components/QuickTableJumpModal';
 import { useTableHotkeys } from '@/hooks/useTableHotkeys';
 

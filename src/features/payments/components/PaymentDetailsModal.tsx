@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import Link from 'next/link';
+import { Link } from '@/lib/navigation';
 import { EnrichedPayment } from '@/types/payments';
 import { getPaymentDetails } from '@/services/payments/paymentService';
 import { printBill } from '@/services/printing/printService';

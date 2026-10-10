@@ -1,9 +1,10 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter } from '@/lib/navigation';
 import { TableWithSession } from '@/types/tables';
 import { getTablesWithActiveSessions } from '@/services/tables/tableService';
+import { openTable } from '@/services/apiServices';
 import {
   UtensilsCrossed,
   Search,
@@ -87,16 +88,9 @@ export function QuickTableJumpModal({ isOpen, onClose, onSelectTable }: QuickTab
       let sessionId = table.active_session?.id;
       if (!sessionId) {
         try {
-          const res = await fetch('/api/tables/open', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ tableId: table.id, guestCount: 2 }),
-          });
-          if (res.ok) {
-            const data = await res.json();
-            if (data?.sessionId) {
-              sessionId = data.sessionId;
-            }
+          const data = await openTable({ tableId: table.id, guestCount: 2 });
+          if (data?.sessionId) {
+            sessionId = data.sessionId;
           }
         } catch {
           // Fallback

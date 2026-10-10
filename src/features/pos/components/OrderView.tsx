@@ -1,13 +1,15 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
-import Link from 'next/link';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Link } from '@/lib/navigation';
 import { TableWithSession } from '@/types/tables';
 import { MenuCategory, MenuItem } from '@/types/menu';
 import { CartProvider, useCart } from '@/features/pos/context/CartContext';
 import { MenuPanel } from '@/features/pos/components/MenuPanel';
 import { CartPanel } from '@/features/pos/components/CartPanel';
 import { OrderHistoryPanel } from '@/features/pos/components/OrderHistoryPanel';
+import { getTablesWithActiveSessions } from '@/services/tables/tableService';
+import { getMenuCategories, getMenuItems } from '@/services/menu/menuService';
 import {
   UtensilsCrossed,
   Users,
@@ -27,13 +29,23 @@ import {
 } from 'lucide-react';
 
 interface OrderViewProps {
-  table: TableWithSession;
-  categories: MenuCategory[];
-  menuItems: MenuItem[];
+  table?: TableWithSession | null;
+  categories?: MenuCategory[];
+  menuItems?: MenuItem[];
   initialOrderType?: 'dine_in' | 'takeaway' | 'delivery';
+  tableId?: string;
 }
 
-function OrderViewInner({ table, categories, menuItems, initialOrderType = 'dine_in' }: OrderViewProps) {
+function OrderViewInner({
+  table: initialTable = null,
+  categories: initialCategories = [],
+  menuItems: initialMenuItems = [],
+  initialOrderType = 'dine_in',
+  tableId: propTableId,
+}: OrderViewProps) {
+  const [table, setTable] = useState<TableWithSession | null>(initialTable);
+  const [categories, setCategories] = useState<MenuCategory[]>(initialCategories);
+  const [menuItems, setMenuItems] = useState<MenuItem[]>(initialMenuItems);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'cart' | 'history'>('cart');
@@ -43,8 +55,47 @@ function OrderViewInner({ table, categories, menuItems, initialOrderType = 'dine
 
   const { cartItems, clearCart, totalItems, total } = useCart();
 
-  const session = table.active_session;
-  const tableNumber = table.table_number;
+  useEffect(() => {
+    if (!initialTable) {
+      getTablesWithActiveSessions()
+        .then((allTables) => {
+          if (propTableId) {
+            const matched = allTables.find(
+              (t) =>
+                t.id === propTableId ||
+                t.table_number === propTableId ||
+                t.table_number === `T-${propTableId}` ||
+                t.table_number === `T-${propTableId.padStart(2, '0')}`
+            );
+            if (matched) setTable(matched);
+            else if (allTables.length > 0) setTable(allTables[0]);
+          } else if (allTables.length > 0) {
+            setTable(allTables[0]);
+          }
+        })
+        .catch(() => {});
+    } else {
+      setTable(initialTable);
+    }
+  }, [initialTable, propTableId]);
+
+  useEffect(() => {
+    if (initialCategories.length === 0) {
+      getMenuCategories().then(setCategories).catch(() => {});
+    } else {
+      setCategories(initialCategories);
+    }
+
+    if (initialMenuItems.length === 0) {
+      getMenuItems().then(setMenuItems).catch(() => {});
+    } else {
+      setMenuItems(initialMenuItems);
+    }
+  }, [initialCategories, initialMenuItems]);
+
+  const session = table?.active_session;
+  const tableNumber = table?.table_number || 'T-1';
+  const tableId = table?.id || propTableId || '';
   const guestCount = session?.guest_count || 1;
   const sessionNumber = session?.session_number || '1';
 
@@ -145,7 +196,6 @@ function OrderViewInner({ table, categories, menuItems, initialOrderType = 'dine
 
       {/* 2. MAIN POS WORKSTATION AREA */}
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-2.5 overflow-hidden">
-        
         {/* LEFT COLUMN: CATEGORIES LIST (2 cols on lg) */}
         <div className="hidden lg:flex lg:col-span-2 flex-col bg-white border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
           <div className="p-2.5 border-b border-slate-200 bg-slate-50 font-black text-xs text-slate-900 uppercase tracking-wider">
@@ -202,14 +252,14 @@ function OrderViewInner({ table, categories, menuItems, initialOrderType = 'dine
         <div className="hidden lg:block lg:col-span-4 h-full overflow-hidden">
           {activeTab === 'cart' ? (
             <CartPanel
-              tableSessionId={table?.active_session?.id || ''}
+              tableSessionId={session?.id || ''}
               tableNumber={tableNumber}
-              tableId={table?.id}
+              tableId={tableId}
               onOrderSubmitted={handleOrderSubmitted}
             />
           ) : (
             <OrderHistoryPanel
-              tableSessionId={table?.active_session?.id || ''}
+              tableSessionId={session?.id || ''}
               refreshTrigger={historyTrigger}
             />
           )}
@@ -272,14 +322,14 @@ function OrderViewInner({ table, categories, menuItems, initialOrderType = 'dine
             <div className="flex-1 overflow-hidden">
               {activeTab === 'cart' ? (
                 <CartPanel
-                  tableSessionId={table?.active_session?.id || ''}
+                  tableSessionId={session?.id || ''}
                   tableNumber={tableNumber}
-                  tableId={table?.id}
+                  tableId={tableId}
                   onOrderSubmitted={handleOrderSubmitted}
                 />
               ) : (
                 <OrderHistoryPanel
-                  tableSessionId={table?.active_session?.id || ''}
+                  tableSessionId={session?.id || ''}
                   refreshTrigger={historyTrigger}
                 />
               )}
@@ -302,7 +352,7 @@ function OrderViewInner({ table, categories, menuItems, initialOrderType = 'dine
           )}
 
           <Link
-            href={`/pos/billing?tableId=${table.id}`}
+            href={`/pos/billing?tableId=${tableId}`}
             className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs rounded-lg flex items-center space-x-1.5 shadow-xs transition active:scale-[0.98]"
           >
             <FileText className="w-4 h-4" />
@@ -339,4 +389,3 @@ export function OrderView(props: OrderViewProps) {
     </CartProvider>
   );
 }
-

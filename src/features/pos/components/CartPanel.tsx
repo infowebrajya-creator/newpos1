@@ -1,9 +1,10 @@
 'use client';
 
 import React, { useState } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { Link, useRouter } from '@/lib/navigation';
 import { useCart } from '@/features/pos/context/CartContext';
+import { submitKot, saveAndBill } from '@/services/apiServices';
+import { enqueueOfflineOrder } from '@/services/offline/offlineStorageService';
 import { getActiveOrderForSession, createOrder, addOrderRoundBatch } from '@/services/orders/orderService';
 import { submitRoundToKitchen } from '@/services/kitchen/kitchenService';
 import { buildKotPrintDocument, buildBillPrintDocument } from '@/services/printing/printDocumentService';
@@ -111,28 +112,37 @@ export function CartPanel({ tableSessionId, tableNumber, tableId, onOrderSubmitt
       return;
     }
 
+    // Offline check: queue locally if navigator is offline
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      enqueueOfflineOrder({
+        tableSessionId,
+        cartItems,
+        type: 'kot',
+      });
+      clearCart();
+      setIsLoading(false);
+      setSuccessMsg(`📶 Offline Mode: KOT queued locally! Auto-syncing when Wi-Fi connects.`);
+      if (onOrderSubmitted) onOrderSubmitted();
+      return;
+    }
+
     try {
       setIsLoading(true);
 
-      const res = await fetch('/api/orders/submit-kot', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          tableSessionId,
-          cartItems: cartItems.map((item) => ({
-            menuItemId: item.menuItemId,
-            itemName: item.itemName,
-            quantity: item.quantity,
-            unitPrice: item.unitPrice,
-            itemNote: item.itemNote,
-            isComplimentary: item.isComplimentary,
-          })),
-        }),
+      const data = await submitKot({
+        tableSessionId,
+        cartItems: cartItems.map((item) => ({
+          menuItemId: item.menuItemId,
+          itemName: item.itemName,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          itemNote: item.itemNote,
+          isComplimentary: item.isComplimentary,
+        })),
       });
 
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || 'Unable to send order round to kitchen.');
+      if (!data.success) {
+        throw new Error('Unable to send order round to kitchen.');
       }
 
       if (shouldPrint && (data.kotId || data.roundId || data.kotDocument)) {
@@ -156,13 +166,15 @@ export function CartPanel({ tableSessionId, tableNumber, tableId, onOrderSubmitt
     } catch (err: unknown) {
       setIsLoading(false);
       const msg = err instanceof Error ? err.message : '';
-      if (msg.includes('row-level security') || msg.includes('policy')) {
-        setError(
-          'Row-Level Security (RLS) is active on Supabase tables. Run supabase/fix_rls_policies.sql in Supabase SQL Editor.'
-        );
-      } else {
-        setError(`KOT dispatch error: ${msg}`);
-      }
+      
+      // Fallback to offline queue if network fails
+      enqueueOfflineOrder({
+        tableSessionId,
+        cartItems,
+        type: 'kot',
+      });
+      clearCart();
+      setSuccessMsg(`📶 Network disruption: Order saved offline! Will sync automatically.`);
     }
   };
 
@@ -186,26 +198,47 @@ export function CartPanel({ tableSessionId, tableNumber, tableId, onOrderSubmitt
       router.push('/pos/billing');
     }
 
-    // 3. Asynchronous background persistence call
+    // 3. Asynchronous background persistence call with offline fallback
     try {
-      fetch('/api/billing/save-and-bill', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        enqueueOfflineOrder({
           tableSessionId,
-          cartItems: currentCartSnapshot.map((item) => ({
-            menuItemId: item.menuItemId,
-            quantity: item.quantity,
-            unitPrice: item.unitPrice,
-            itemNote: item.itemNote,
-            isComplimentary: item.isComplimentary,
-          })),
+          cartItems: currentCartSnapshot,
           paymentMethod,
           isPaid,
-        }),
+          type: 'save_and_bill',
+        });
+        return;
+      }
+
+      saveAndBill({
+        tableSessionId,
+        cartItems: currentCartSnapshot.map((item) => ({
+          menuItemId: item.menuItemId,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          itemNote: item.itemNote,
+          isComplimentary: item.isComplimentary,
+        })),
+        paymentMethod,
+        isPaid,
+      }).catch(() => {
+        enqueueOfflineOrder({
+          tableSessionId,
+          cartItems: currentCartSnapshot,
+          paymentMethod,
+          isPaid,
+          type: 'save_and_bill',
+        });
       });
     } catch {
-      // Handled silently
+      enqueueOfflineOrder({
+        tableSessionId,
+        cartItems: currentCartSnapshot,
+        paymentMethod,
+        isPaid,
+        type: 'save_and_bill',
+      });
     }
   };
 

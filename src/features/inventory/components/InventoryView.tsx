@@ -39,7 +39,7 @@ import {
   Check,
   Building2,
 } from 'lucide-react';
-import Link from 'next/link';
+import { Link } from '@/lib/navigation';
 
 interface InventoryViewProps {
   initialIngredients?: Ingredient[];

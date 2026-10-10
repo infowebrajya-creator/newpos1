@@ -321,7 +321,6 @@ export async function POST(req: Request) {
         bill_id: billId,
         payment_method: paymentMethod || 'cash',
         amount: grandTotal,
-        status: 'completed',
         created_at: new Date().toISOString(),
       });
 

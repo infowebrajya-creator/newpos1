@@ -1,14 +1,14 @@
 'use client';
 
 import React from 'react';
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { Link, usePathname } from '@/lib/navigation';
 import {
   ShoppingCart,
   UtensilsCrossed,
   Receipt,
   ChefHat,
   Menu,
+  PanelTopDashed,
 } from 'lucide-react';
 
 interface MobileBottomNavProps {

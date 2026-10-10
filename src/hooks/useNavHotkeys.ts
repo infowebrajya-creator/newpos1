@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
+import { useRouter, usePathname } from '@/lib/navigation';
 
 export interface NavModuleShortcut {
   category: string;
@@ -32,7 +32,7 @@ export function useNavHotkeys(active: boolean = true) {
   useEffect(() => {
     if (active) {
       MODULE_NAV_SHORTCUTS.forEach((item) => {
-        router.prefetch(item.href);
+        router.prefetch?.(item.href);
       });
     }
   }, [router, active]);

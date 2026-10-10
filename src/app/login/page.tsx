@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter } from '@/lib/navigation';
 import { signIn, getCurrentUserProfile } from '@/services/auth/authService';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';

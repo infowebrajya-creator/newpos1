@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import Link from 'next/link';
+import { Link } from '@/lib/navigation';
 import { TableWithSession, TableStatus } from '@/types/tables';
 import { ShoppingCart, FileText, Printer, Eye, Info, RotateCcw } from 'lucide-react';
 

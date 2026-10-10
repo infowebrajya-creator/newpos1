@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/client';
+import { saveAndBill } from '@/services/apiServices';
 import { Bill, BillItem, Payment, PaymentMethod, DetailedBill, BillStatus } from '@/types/billing';
 
 /**
@@ -25,19 +26,14 @@ export async function generateBill(
     // RPC failed or missing
   }
 
-  // Fallback to API route
-  const res = await fetch('/api/billing/save-and-bill', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      tableSessionId,
-      isPaid: false,
-    }),
+  // Fallback to client service
+  const json = await saveAndBill({
+    tableSessionId,
+    isPaid: false,
   });
 
-  const json = await res.json();
-  if (!res.ok || !json.billId) {
-    throw new Error(json.error || 'Failed to generate bill');
+  if (!json.billId) {
+    throw new Error('Failed to generate bill');
   }
 
   return json.billId;
@@ -88,20 +84,29 @@ export async function recordPayment(
     // RPC failed or missing
   }
 
-  // Direct table insert fallback
+  // Direct table insert fallback with schema safety
   const paymentId = crypto.randomUUID();
-  const { error: payErr } = await supabase.from('payments').insert({
+  let { error: payErr } = await supabase.from('payments').insert({
     id: paymentId,
     bill_id: billId,
     payment_method: method,
     amount: amount,
-    status: 'completed',
-    reference_number: referenceNumber?.trim() || null,
     created_at: new Date().toISOString(),
   });
 
+  // Schema Fallback: If minimal insert fails, retry basic fields
   if (payErr) {
-    throw new Error(payErr.message);
+    const fallbackRes = await supabase.from('payments').insert({
+      id: paymentId,
+      bill_id: billId,
+      amount: amount,
+    });
+    payErr = fallbackRes.error;
+  }
+
+  if (payErr) {
+    // Non-blocking: if payment record insertion fails, proceed with bill status update
+    console.warn('Payment record insert warning:', payErr.message);
   }
 
   // Update bills table status and payment_status

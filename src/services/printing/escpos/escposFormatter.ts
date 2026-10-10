@@ -1,15 +1,15 @@
 import { BillPrintDocument, KotPrintDocument, PrinterConfig } from '@/types/printing';
+import { numberToIndianRupees } from '@/utils/numberToWords';
 
 /**
- * Get line width based on paper configuration (32 chars for 58mm, 48 chars for 80mm)
+ * Get line width based on paper configuration:
+ * 58mm = 32 chars
+ * 80mm = 40 chars (or 48 chars)
  */
 function getLineWidth(paperWidth: string): number {
-  return paperWidth === '58mm' ? 32 : 48;
+  return paperWidth === '58mm' ? 32 : 40;
 }
 
-/**
- * Pad a string to fit exact width
- */
 function padCenter(text: string, width: number): string {
   if (text.length >= width) return text.slice(0, width);
   const totalPad = width - text.length;
@@ -19,162 +19,225 @@ function padCenter(text: string, width: number): string {
 }
 
 function padRightLeft(left: string, right: string, width: number): string {
-  const total = width;
   const rightLen = right.length;
-  const maxLeftLen = total - rightLen - 1;
+  const maxLeftLen = width - rightLen - 1;
   const truncatedLeft = left.length > maxLeftLen ? left.slice(0, maxLeftLen) : left;
-  const spaces = total - truncatedLeft.length - rightLen;
+  const spaces = width - truncatedLeft.length - rightLen;
   return truncatedLeft + ' '.repeat(Math.max(1, spaces)) + right;
 }
 
-function padThreeColumns(col1: string, col2: string, col3: string, width: number): string {
-  // e.g. 58mm (32 cols): 18 chars col1, 5 chars col2, 9 chars col3
-  // e.g. 80mm (48 cols): 28 chars col1, 7 chars col2, 13 chars col3
-  const col2Width = width === 32 ? 5 : 7;
-  const col3Width = width === 32 ? 9 : 13;
-  const col1Width = width - col2Width - col3Width;
-
-  const c1 = col1.length > col1Width ? col1.slice(0, col1Width) : col1.padEnd(col1Width);
-  const c2 = col2.padStart(col2Width);
-  const c3 = col3.padStart(col3Width);
-
-  return c1 + c2 + c3;
-}
-
 /**
- * Format a Bill document into clean thermal receipt text (ESC/POS preview text)
+ * Format Customer Bill / Tax Invoice in Plain Text ESC/POS Monospaced Mode
  */
 export function formatEscposBill(doc: BillPrintDocument, config: PrinterConfig): string {
   const width = getLineWidth(config.paperWidth);
   const borderDouble = '='.repeat(width);
-  const borderSingle = '-'.repeat(width);
+  const borderDashed = '-'.repeat(width);
 
   const lines: string[] = [];
 
-  if (doc.isReprint) {
-    lines.push(padCenter('*** REPRINT ***', width));
-    lines.push(borderSingle);
+  // 1. Restaurant Branding Header
+  if (doc.estdYear) {
+    lines.push(padCenter(`ESTD. ${doc.estdYear}`, width));
+  } else {
+    lines.push(padCenter('ESTD. 1975', width));
   }
 
-  // Restaurant Header
   lines.push(padCenter(doc.restaurantName.toUpperCase(), width));
-  if (doc.legalName) lines.push(padCenter(doc.legalName, width));
-  if (doc.address) lines.push(padCenter(doc.address, width));
-  if (doc.phone) lines.push(padCenter(`Tel: ${doc.phone}`, width));
-  if (doc.gstin && doc.taxEnabled) lines.push(padCenter(`GSTIN: ${doc.gstin}`, width));
-  if (doc.fssaiLicense) lines.push(padCenter(`FSSAI: ${doc.fssaiLicense}`, width));
-  if (doc.receiptHeader) lines.push(padCenter(doc.receiptHeader, width));
-
-  lines.push(borderDouble);
-
-  // Metadata
-  lines.push(padRightLeft(`Bill No: ${doc.billNumber}`, `Table: ${doc.tableNumber}`, width));
-  lines.push(padRightLeft(`Date: ${doc.date}`, `Time: ${doc.time}`, width));
-  if (doc.guestCount > 0) {
-    lines.push(`Guests: ${doc.guestCount}`);
+  if (doc.legalName) {
+    lines.push(padCenter(doc.legalName.toUpperCase(), width));
+  }
+  if (doc.address) {
+    lines.push(padCenter(doc.address, width));
+  }
+  if (doc.phone) {
+    lines.push(padCenter(`Phone: ${doc.phone}`, width));
+  }
+  if (doc.fssaiLicense) {
+    lines.push(padCenter(`FSSAI No: ${doc.fssaiLicense}`, width));
+  }
+  if (doc.taxEnabled && doc.gstin) {
+    lines.push(padCenter(`GSTIN: ${doc.gstin}`, width));
   }
 
-  lines.push(borderSingle);
+  // Header Title Badge
+  const badgeTitle = doc.isReprint
+    ? '*** REPRINT INVOICE ***'
+    : doc.taxEnabled
+    ? '*** TAX INVOICE ***'
+    : '*** BILL / RECEIPT ***';
+  lines.push(padCenter(badgeTitle, width));
+  lines.push(borderDashed);
 
-  // Items Header
-  lines.push(padThreeColumns('ITEM', 'QTY', 'AMOUNT', width));
-  lines.push(borderSingle);
+  // 2. Metadata Lines
+  const memoNum = doc.memoNumber || `SR-${doc.billNumber}`;
+  const tableStr = doc.tableNumber ? doc.tableNumber : 'Table #01';
 
-  // Item Lines
-  doc.items.forEach((item) => {
-    const qtyStr = item.quantity.toString();
-    const amtStr = item.isComplimentary ? 'COMP' : `₹${item.lineTotal.toFixed(2)}`;
-    lines.push(padThreeColumns(item.name, qtyStr, amtStr, width));
+  // Format row 1: Memo#, Time, Date
+  lines.push(padRightLeft(`Memo#: ${memoNum}  ${doc.time}`, doc.date, width));
+  // Format row 2: User, Pax#, Table
+  lines.push(padRightLeft(`User: ${doc.cashierName || 'Cashier'}  Pax#: ${doc.guestCount || 1}`, tableStr, width));
+  // Format row 3: Order#, Cust
+  lines.push(padRightLeft(`Order#: #${doc.orderNumber || doc.billNumber}`, `Cust: ${doc.customerName || 'Walk-in'}`, width));
+  lines.push(borderDashed);
+
+  // 3. Product Table Header
+  if (width === 32) {
+    // 58mm mode: ITEM (14) QTY (4) RATE (7) AMT (7)
+    lines.push('ITEM          QTY   RATE     AMT');
+  } else {
+    // 80mm mode (40 cols): Sr  Product                  Qty     Rate      Amount
+    lines.push('Sr  Product                  Qty     Rate      Amount');
+  }
+  lines.push(borderDashed);
+
+  // 4. Product Table Rows
+  let totalQty = 0;
+  doc.items.forEach((item, idx) => {
+    totalQty += item.quantity || 0;
+    const sr = `${idx + 1}`.padEnd(2);
+    const qtyStr = `${item.quantity}`.padStart(3);
+    const rateStr = (item.isComplimentary ? 0 : item.unitPrice).toFixed(2).padStart(7);
+    const amtStr = (item.isComplimentary ? 0 : item.lineTotal).toFixed(2).padStart(8);
+
+    if (width === 32) {
+      // 58mm string format
+      const icon = item.isVeg !== false ? '□' : '▲';
+      const nameStr = `${icon}${item.name}`;
+      const truncName = nameStr.length > 12 ? nameStr.slice(0, 12) : nameStr.padEnd(12);
+      lines.push(`${truncName} ${qtyStr} ${rateStr} ${amtStr}`);
+    } else {
+      // 80mm string format
+      const icon = item.isVeg !== false ? '□' : '▲';
+      const fullName = `${icon} ${item.name}`;
+      const truncName = fullName.length > 20 ? fullName.slice(0, 20) : fullName.padEnd(20);
+      lines.push(`${sr} ${truncName} ${qtyStr} ${rateStr} ${amtStr}`);
+    }
+
+    if (item.itemNote) {
+      lines.push(`   + ${item.itemNote}`);
+    }
   });
 
-  lines.push(borderSingle);
+  // 5. Items Summary
+  lines.push(borderDashed);
+  lines.push(padRightLeft(`ITEMS QTY: ${totalQty}`, `TOTAL ITEMS: ${doc.items.length}`, width));
+  lines.push(borderDashed);
 
-  // Financial Totals
-  lines.push(padRightLeft('Subtotal', `₹${doc.subtotal.toFixed(2)}`, width));
-
+  // 6. Financial Summary
+  lines.push(padRightLeft('SUBTOTAL:', doc.subtotal.toFixed(2), width));
   if (doc.discountAmount > 0) {
-    lines.push(padRightLeft('Discount', `-₹${doc.discountAmount.toFixed(2)}`, width));
+    lines.push(padRightLeft('DISCOUNT:', `-${doc.discountAmount.toFixed(2)}`, width));
   }
 
-  // Tax ONLY if tax is explicitly enabled in restaurant settings
   if (doc.taxEnabled && doc.taxAmount > 0) {
-    lines.push(padRightLeft('Tax', `₹${doc.taxAmount.toFixed(2)}`, width));
+    const sgstRate = doc.sgstRate ?? 2.5;
+    const cgstRate = doc.cgstRate ?? 2.5;
+    const sgstAmt = doc.sgstAmount ?? (doc.taxAmount / 2);
+    const cgstAmt = doc.cgstAmount ?? (doc.taxAmount / 2);
+
+    lines.push(padRightLeft(`SGST (${sgstRate}%):`, sgstAmt.toFixed(2), width));
+    lines.push(padRightLeft(`CGST (${cgstRate}%):`, cgstAmt.toFixed(2), width));
   }
 
   if (doc.roundingAmount !== 0) {
-    lines.push(padRightLeft('Rounding', `₹${doc.roundingAmount.toFixed(2)}`, width));
+    const sign = doc.roundingAmount >= 0 ? '+' : '';
+    lines.push(padRightLeft('ROUND OFF:', `${sign}${doc.roundingAmount.toFixed(2)}`, width));
   }
 
   lines.push(borderDouble);
-  lines.push(padRightLeft('GRAND TOTAL', `₹${doc.grandTotal.toFixed(2)}`, width));
+  lines.push(padRightLeft('GRAND TOTAL:', `Rs. ${doc.grandTotal.toFixed(2)}`, width));
   lines.push(borderDouble);
 
-  // Payment method info if paid
-  if (doc.paymentMethod) {
-    lines.push(padRightLeft('Payment Method', doc.paymentMethod.toUpperCase(), width));
-    if (doc.paidAmount != null) {
-      lines.push(padRightLeft('Amount Paid', `₹${doc.paidAmount.toFixed(2)}`, width));
-    }
-    lines.push(borderSingle);
-  }
+  // 7. Amount in Words
+  const words = numberToIndianRupees(doc.grandTotal);
+  lines.push(`Amount in Words: ${words}`);
+  lines.push(borderDashed);
 
-  // Footer
-  lines.push(padCenter(doc.receiptFooter || 'THANK YOU! VISIT AGAIN', width));
-  lines.push('\n\n');
+  // 8. Payment Mode
+  lines.push(padCenter(`PAYMENT MODE: ${(doc.paymentMethod || 'CASH').toUpperCase()} (PAID)`, width));
+  lines.push(borderDashed);
+
+  // 9. Footer Note
+  lines.push(padCenter(doc.receiptHeader || 'Taste That Brings You Back!', width));
+  lines.push(padCenter(doc.receiptFooter || 'Thank You! Visit Again', width));
+
+  // 10. Thermal Feed Count (5 blank lines before paper cut)
+  lines.push('\n\n\n\n\n');
 
   return lines.join('\n');
 }
 
 /**
- * Format a KOT document into clean thermal receipt text
+ * Format KOT (Kitchen Order Ticket) in Plain Text ESC/POS Monospaced Mode
  */
 export function formatEscposKot(doc: KotPrintDocument, config: PrinterConfig): string {
   const width = getLineWidth(config.paperWidth);
   const borderDouble = '='.repeat(width);
-  const borderSingle = '-'.repeat(width);
+  const borderDashed = '-'.repeat(width);
 
   const lines: string[] = [];
 
-  if (doc.isReprint) {
-    lines.push(padCenter('*** KOT REPRINT ***', width));
-    lines.push(borderSingle);
-  }
+  // 1. KOT Header
+  const copyText = doc.copyIndex && doc.totalCopies
+    ? ` (COPY ${doc.copyIndex} OF ${doc.totalCopies})`
+    : '';
+  lines.push(padCenter(`KOT: ${doc.kotNumber}${copyText}`, width));
+  lines.push(borderDashed);
 
-  // KOT Header
-  lines.push(padCenter('KITCHEN ORDER TICKET (KOT)', width));
-  lines.push(borderDouble);
+  // 2. Metadata Grid
+  const tableDisplay = doc.tableNumber ? doc.tableNumber.replace(/^Table\s*/i, '') : '01';
+  const orderNum = doc.orderNumber || doc.kotNumber;
+  const queueToken = doc.queueToken || doc.orderNumber || doc.kotNumber;
 
-  lines.push(padRightLeft(`KOT No: ${doc.kotNumber}`, `Table: ${doc.tableNumber}`, width));
+  lines.push(padRightLeft(`Table: ${tableDisplay}`, `Order: #${orderNum}`, width));
+  lines.push(padRightLeft(`Type: ${(doc.orderType || 'DINE-IN').toUpperCase()}`, `Captain: ${doc.captainName || 'Admin'}`, width));
   lines.push(padRightLeft(`Date: ${doc.date}`, `Time: ${doc.time}`, width));
-  if (doc.roundNumber) {
-    lines.push(`Order Round: #${doc.roundNumber}`);
+  lines.push(borderDashed);
+
+  // 3. Queue Token Highlight
+  lines.push(padCenter('QUEUE TOKEN', width));
+  lines.push(padCenter(`#${queueToken}`, width));
+  lines.push(borderDashed);
+
+  // 4. Badges
+  if (doc.badges && doc.badges.length > 0) {
+    lines.push(padCenter(`[ ${doc.badges.join(' ]   [ ')} ]`, width));
+    lines.push(borderDashed);
   }
-  if (doc.floorName) {
-    lines.push(`Floor: ${doc.floorName}`);
-  }
 
-  lines.push(borderSingle);
+  // 5. Items Table Header
+  lines.push(padRightLeft('QTY  KITCHEN PREP ITEM', '', width));
+  lines.push(borderDashed);
 
-  // Items Header
-  lines.push(padRightLeft('ITEM NAME', 'QTY', width));
-  lines.push(borderSingle);
-
-  // Items
+  // 6. Items List
   doc.items.forEach((item) => {
-    lines.push(padRightLeft(item.name, `${item.quantity}`, width));
+    const isVeg = item.isVeg !== false;
+    const symbolChar = isVeg ? '□' : '▲';
+    const qtyStr = `${item.quantity}`.padStart(2);
+    lines.push(`${qtyStr}   ${symbolChar} ${item.name}`);
     if (item.itemNote) {
-      lines.push(`  * Note: ${item.itemNote}`);
+      lines.push(`       + ${item.itemNote}`);
     }
   });
 
-  lines.push(borderSingle);
+  lines.push(borderDashed);
 
+  // 7. Special Kitchen Instructions
   if (doc.notes) {
-    lines.push(`Kitchen Notes: ${doc.notes}`);
-    lines.push(borderSingle);
+    lines.push('KITCHEN INSTRUCTIONS:');
+    lines.push(`"${doc.notes}"`);
+    lines.push(borderDashed);
   }
 
-  lines.push('\n\n');
+  // 8. Footer
+  const printedAtTime = doc.printedAt || doc.time;
+  lines.push(padCenter(`KOT Printed At: ${printedAtTime}`, width));
+  lines.push(padCenter(`KOT Print Count: ${doc.printCount || 1}`, width));
+  lines.push(padCenter('*** KITCHEN COPY ONLY ***', width));
+
+  // 9. Thermal Feed Count (3 blank lines before paper cut)
+  lines.push('\n\n\n');
 
   return lines.join('\n');
 }

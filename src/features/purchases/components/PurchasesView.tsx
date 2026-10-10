@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import Link from 'next/link';
+import { Link } from '@/lib/navigation';
 import { Purchase, PurchaseStatus } from '@/types/purchases';
 import { getPurchases, getPurchaseById, cancelPurchase } from '@/services/purchases/purchaseService';
 import { createClient } from '@/lib/supabase/client';

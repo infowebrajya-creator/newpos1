@@ -1,8 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { Link, usePathname } from '@/lib/navigation';
 import { NavItemKey, hasPermission } from '@/lib/permissions';
 import { UserRole } from '@/types';
 import {

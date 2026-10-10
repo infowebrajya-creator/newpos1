@@ -26,9 +26,9 @@ import {
 } from 'lucide-react';
 
 interface RecipesViewProps {
-  menuItems: MenuItem[];
-  recipes: RecipeWithItems[];
-  ingredients: Ingredient[];
+  menuItems?: MenuItem[];
+  recipes?: RecipeWithItems[];
+  ingredients?: Ingredient[];
 }
 
 export function RecipesView({ menuItems = [], recipes = [], ingredients = [] }: RecipesViewProps) {

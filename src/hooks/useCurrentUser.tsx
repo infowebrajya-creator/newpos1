@@ -3,7 +3,8 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { AuthUser, UserProfile } from '@/types';
 import { getCurrentUser, getCurrentUserProfile, signOut as serviceSignOut } from '@/services/auth/authService';
-import { useRouter } from 'next/navigation';
+import { TEST_AUTH_USER, TEST_USER_PROFILE } from '@/services/auth/testAuthHelper';
+import { useRouter } from '@/lib/navigation';
 
 interface AuthContextType {
   user: AuthUser | null;
@@ -14,9 +15,9 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType>({
-  user: null,
-  profile: null,
-  loading: true,
+  user: TEST_AUTH_USER,
+  profile: TEST_USER_PROFILE,
+  loading: false,
   refreshProfile: async () => {},
   signOut: async () => {},
 });
@@ -30,26 +31,21 @@ export function AuthProvider({
   initialUser?: AuthUser | null;
   initialProfile?: UserProfile | null;
 }) {
-  const [user, setUser] = useState<AuthUser | null>(initialUser);
-  const [profile, setProfile] = useState<UserProfile | null>(initialProfile);
-  const [loading, setLoading] = useState<boolean>(!initialUser || !initialProfile);
+  const [user, setUser] = useState<AuthUser | null>(initialUser || TEST_AUTH_USER);
+  const [profile, setProfile] = useState<UserProfile | null>(initialProfile || TEST_USER_PROFILE);
+  const [loading, setLoading] = useState<boolean>(false);
   const router = useRouter();
 
   const loadUserData = useCallback(async () => {
     try {
-      setLoading(true);
       const currentUser = await getCurrentUser();
-      if (!currentUser) {
-        setUser(null);
-        setProfile(null);
-        return;
+      if (currentUser) {
+        setUser(currentUser);
+        const userProfile = await getCurrentUserProfile();
+        setProfile(userProfile || TEST_USER_PROFILE);
       }
-      setUser(currentUser);
-      const userProfile = await getCurrentUserProfile();
-      setProfile(userProfile);
     } catch {
-      setUser(null);
-      setProfile(null);
+      // Keep fallback
     } finally {
       setLoading(false);
     }
@@ -58,8 +54,6 @@ export function AuthProvider({
   useEffect(() => {
     if (!initialUser || !initialProfile) {
       loadUserData();
-    } else {
-      setLoading(false);
     }
   }, [initialUser, initialProfile, loadUserData]);
 

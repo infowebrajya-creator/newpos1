@@ -22,8 +22,8 @@ function createWindow() {
 
   const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
   const startUrl = isDev 
-    ? (process.env.ELECTRON_START_URL || 'http://localhost:3000') 
-    : `file://${path.join(__dirname, '../out/index.html')}`;
+    ? (process.env.ELECTRON_START_URL || 'http://localhost:5173') 
+    : `file://${path.join(__dirname, '../dist/index.html')}`;
 
   console.log(`[Electron Main] Loading URL: ${startUrl}`);
   mainWindow.loadURL(startUrl);

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import Link from 'next/link';
+import { Link } from '@/lib/navigation';
 import { Supplier, CreateSupplierInput } from '@/types/purchases';
 import { getSuppliers, createSupplier, updateSupplier } from '@/services/suppliers/supplierService';
 import { createClient } from '@/lib/supabase/client';

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import Link from 'next/link';
+import { Link } from '@/lib/navigation';
 import { RestaurantSettings, UserProfile } from '@/types';
 import { getRestaurantSettings } from '@/services/settings/settingsService';
 import { getCurrentUserProfile } from '@/services/auth/authService';

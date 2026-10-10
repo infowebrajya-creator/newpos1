@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { BillPrintDocument, KotPrintDocument, PrintResult } from '@/types/printing';
 import { formatEscposBill, formatEscposKot } from '@/services/printing/escpos/escposFormatter';
+import { generateBillHtml, generateKotHtml } from '@/services/printing/html/htmlReceiptFormatter';
 import { printBill, printKot, getPrinterConfig } from '@/services/printing/printService';
 
 interface PrintPreviewModalProps {
@@ -22,6 +23,7 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
 }) => {
   const [isPrinting, setIsPrinting] = useState(false);
   const [printStatus, setPrintStatus] = useState<PrintResult | null>(null);
+  const [viewMode, setViewMode] = useState<'html' | 'escpos'>('html');
 
   if (!isOpen || (!billDocument && !kotDocument)) {
     return null;
@@ -32,6 +34,12 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
     ? formatEscposBill(billDocument, config)
     : kotDocument
     ? formatEscposKot(kotDocument, config)
+    : '';
+
+  const htmlPreviewText = billDocument
+    ? generateBillHtml(billDocument, config)
+    : kotDocument
+    ? generateKotHtml(kotDocument, config)
     : '';
 
   const handlePrint = async () => {
@@ -69,7 +77,7 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn">
       <div className="bg-stone-900 border border-stone-800 text-stone-100 rounded-xl max-w-md w-full p-6 shadow-2xl flex flex-col max-h-[90vh]">
         {/* Header */}
-        <div className="flex justify-between items-center pb-4 border-b border-stone-800">
+        <div className="flex justify-between items-center pb-3 border-b border-stone-800">
           <div>
             <h3 className="text-lg font-bold text-amber-400">
               {billDocument
@@ -92,10 +100,36 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
           </button>
         </div>
 
+        {/* View Mode Toggle Tabs */}
+        <div className="flex bg-stone-950 p-1 rounded-lg border border-stone-800 mt-3 text-xs font-bold">
+          <button
+            type="button"
+            onClick={() => setViewMode('html')}
+            className={`flex-1 py-1.5 rounded-md transition ${
+              viewMode === 'html'
+                ? 'bg-amber-400 text-stone-950 shadow-xs'
+                : 'text-stone-400 hover:text-stone-200'
+            }`}
+          >
+            HTML Thermal Preview
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode('escpos')}
+            className={`flex-1 py-1.5 rounded-md transition ${
+              viewMode === 'escpos'
+                ? 'bg-amber-400 text-stone-950 shadow-xs'
+                : 'text-stone-400 hover:text-stone-200'
+            }`}
+          >
+            ESC/POS Plain Text
+          </button>
+        </div>
+
         {/* Status Alert if any */}
         {printStatus && (
           <div
-            className={`mt-4 p-3 rounded-lg text-xs font-medium border ${
+            className={`mt-3 p-3 rounded-lg text-xs font-medium border ${
               printStatus.success
                 ? 'bg-emerald-950/50 border-emerald-800 text-emerald-300'
                 : 'bg-rose-950/50 border-rose-800 text-rose-300'
@@ -106,9 +140,18 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
         )}
 
         {/* Receipt Simulation View */}
-        <div className="my-4 flex-1 overflow-y-auto bg-amber-50 text-stone-900 p-4 rounded-md font-mono text-xs shadow-inner border border-amber-200 whitespace-pre leading-relaxed select-text">
-          {rawPreviewText}
-        </div>
+        {viewMode === 'html' ? (
+          <div className="my-4 flex-1 overflow-y-auto bg-stone-950 p-4 rounded-md flex justify-center shadow-inner border border-stone-800">
+            <div
+              className="bg-white text-black p-2 rounded shadow select-text"
+              dangerouslySetInnerHTML={{ __html: htmlPreviewText }}
+            />
+          </div>
+        ) : (
+          <div className="my-4 flex-1 overflow-y-auto bg-stone-950 text-amber-200 p-4 rounded-md font-mono text-xs shadow-inner border border-stone-800 whitespace-pre leading-relaxed select-text">
+            {rawPreviewText}
+          </div>
+        )}
 
         {/* Actions */}
         <div className="flex justify-between items-center pt-4 border-t border-stone-800">

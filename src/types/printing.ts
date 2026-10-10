@@ -14,17 +14,21 @@ export interface BillPrintItem {
   unitPrice: number;
   lineTotal: number;
   isComplimentary?: boolean;
+  isVeg?: boolean;
+  itemNote?: string | null;
 }
 
 export interface BillPrintDocument {
   billId: string;
   billNumber: string;
+  memoNumber?: string | null;
   date: string;
   time: string;
   tableNumber: string;
   guestCount: number;
   restaurantName: string;
   legalName?: string | null;
+  estdYear?: string | null;
   address?: string | null;
   phone?: string | null;
   gstin?: string | null;
@@ -35,11 +39,18 @@ export interface BillPrintDocument {
   subtotal: number;
   discountAmount: number;
   taxAmount: number;
+  cgstRate?: number;
+  cgstAmount?: number;
+  sgstRate?: number;
+  sgstAmount?: number;
   roundingAmount: number;
   grandTotal: number;
   paymentMethod?: string | null;
   paidAmount?: number | null;
   changeAmount?: number | null;
+  customerName?: string | null;
+  orderNumber?: string | null;
+  cashierName?: string | null;
   isReprint: boolean;
   taxEnabled: boolean;
 }
@@ -48,18 +59,28 @@ export interface KotPrintItem {
   name: string;
   quantity: number;
   itemNote?: string | null;
+  isVeg?: boolean;
 }
 
 export interface KotPrintDocument {
   kotId: string;
   kotNumber: string;
+  copyIndex?: number;
+  totalCopies?: number;
   roundNumber?: number | null;
   date: string;
   time: string;
   tableNumber: string;
+  orderNumber?: string | null;
+  orderType?: string | null;
+  captainName?: string | null;
+  queueToken?: string | null;
+  badges?: string[];
   floorName?: string | null;
   items: KotPrintItem[];
   notes?: string | null;
+  printedAt?: string | null;
+  printCount?: number;
   isReprint: boolean;
 }
 

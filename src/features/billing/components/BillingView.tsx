@@ -1,8 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { Link, useRouter } from '@/lib/navigation';
 import { TableWithSession } from '@/types/tables';
 import { DetailedBill, PaymentMethod } from '@/types/billing';
 import {
@@ -37,26 +36,50 @@ import {
   Split,
 } from 'lucide-react';
 
+import { getTablesWithActiveSessions } from '@/services/tables/tableService';
+
 const formatCurrency = (amount?: number): string => {
   if (amount == null) return '₹0';
   return `₹${amount.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 };
 
 interface BillingViewProps {
-  table: TableWithSession;
+  table?: TableWithSession | null;
   initialBill?: DetailedBill | null;
   initialOrderDetails?: SessionOrderDetails | null;
+  initialTableId?: string;
 }
 
 export function BillingView({
-  table,
+  table: initialTableProp = null,
   initialBill = null,
   initialOrderDetails = null,
+  initialTableId,
 }: BillingViewProps) {
-  const session = table.active_session;
-  const tableSessionId = session?.id || table?.id || '';
-  const tableNumber = table.table_number;
   const router = useRouter();
+
+  // Active Occupied Tables list for quick switching
+  const [activeTables, setActiveTables] = useState<TableWithSession[]>([]);
+  const [selectedTable, setSelectedTable] = useState<TableWithSession | null>(initialTableProp);
+
+  const session = selectedTable?.active_session;
+  const tableSessionId = session?.id || selectedTable?.id || initialTableId || '';
+  const tableNumber = selectedTable?.table_number || 'T-1';
+
+  // Load active table sessions on mount
+  useEffect(() => {
+    getTablesWithActiveSessions().then((tables) => {
+      setActiveTables(tables);
+      if (!selectedTable && tables.length > 0) {
+        if (initialTableId) {
+          const matched = tables.find((t) => t.id === initialTableId || t.active_session?.id === initialTableId);
+          setSelectedTable(matched || tables[0]);
+        } else {
+          setSelectedTable(tables[0]);
+        }
+      }
+    }).catch(() => {});
+  }, [initialTableId, selectedTable]);
 
   // Core State
   const [bill, setBill] = useState<DetailedBill | null>(initialBill);
@@ -512,9 +535,26 @@ export function BillingView({
               <h1 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight">
                 Billing & Checkout
               </h1>
-              <span className="text-xs font-black text-red-700 bg-red-50 border border-red-200 px-2.5 py-0.5 rounded uppercase">
-                TABLE {tableNumber}
-              </span>
+              {activeTables.length > 0 ? (
+                <select
+                  value={selectedTable?.id || ''}
+                  onChange={(e) => {
+                    const t = activeTables.find((tb) => tb.id === e.target.value);
+                    if (t) setSelectedTable(t);
+                  }}
+                  className="text-xs font-black text-red-700 bg-red-50 border border-red-200 px-2.5 py-1 rounded uppercase cursor-pointer focus:outline-none"
+                >
+                  {activeTables.map((tb) => (
+                    <option key={tb.id} value={tb.id}>
+                      TABLE {tb.table_number} ({tb.active_session?.guest_count || 1} guests)
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <span className="text-xs font-black text-red-700 bg-red-50 border border-red-200 px-2.5 py-0.5 rounded uppercase">
+                  TABLE {tableNumber}
+                </span>
+              )}
             </div>
             <p className="text-xs text-slate-500 mt-0.5">
               Session #{session?.session_number || '1'} • {session?.guest_count || 1} Guests
@@ -641,7 +681,7 @@ export function BillingView({
                     Ordered Items Summary
                   </span>
                   <Link
-                    href={`/pos/order?tableId=${table.id}`}
+                    href={`/pos/order?tableId=${selectedTable?.id || ''}`}
                     className="text-[10px] font-bold text-red-600 hover:underline flex items-center gap-1"
                   >
                     + Add / Edit in POS

@@ -1,10 +1,10 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
+import { useRouter, Link } from '@/lib/navigation';
 import { Floor, TableWithSession, TableStatus } from '@/types/tables';
 import { getFloors, getTablesWithActiveSessions, openTableSession } from '@/services/tables/tableService';
+import { openTable, resetTable } from '@/services/apiServices';
 import { TableCard } from '@/features/tables/components/TableCard';
 import { QuickTableJumpModal } from '@/features/tables/components/QuickTableJumpModal';
 import { RefreshCw, UtensilsCrossed, Search, Layers, X, CalendarCheck, Users, Clock, PlusCircle, Zap, Sparkles, QrCode, Smartphone, CheckCircle2, ArrowRight } from 'lucide-react';
@@ -105,11 +105,7 @@ export function TablesView({ initialFloors = [], initialTables = [] }: TablesVie
       router.push(`/pos/order?tableId=${table.id}`);
 
       // 3. Asynchronous background session creation
-      fetch('/api/tables/open', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tableId: table.id, guestCount: 2 }),
-      }).catch(() => {});
+      openTable({ tableId: table.id, guestCount: 2 }).catch(() => {});
     } catch {
       // Fallback
     }
@@ -129,11 +125,7 @@ export function TablesView({ initialFloors = [], initialTables = [] }: TablesVie
       );
 
       // 2. Call server reset API
-      await fetch('/api/tables/reset', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tableId: table.id }),
-      });
+      await resetTable({ tableId: table.id });
     } catch {
       fetchLatestTablesData();
     }
