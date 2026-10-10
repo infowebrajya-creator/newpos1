@@ -1,29 +1,39 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useSearchParams } from 'react-router-dom';
 import { AuthProvider, useCurrentUser } from '@/hooks/useCurrentUser';
 import { PosShellLayout } from '@/components/layout/PosShellLayout';
 import { getRestaurantSettings } from '@/services/settings/settingsService';
 import { RestaurantSettings } from '@/types';
 
-// Page components
+// Core direct imports for instant POS boot
 import LoginPage from '@/app/login/page';
-import { OrderView } from '@/features/pos/components/OrderView';
 import { TablesView } from '@/features/tables/components/TablesView';
-import { OrdersManagementView } from '@/features/orders/components/OrdersManagementView';
-import { KitchenDisplayView } from '@/features/kitchen/components/KitchenDisplayView';
-import { BillingView } from '@/features/billing/components/BillingView';
-import { PaymentsView } from '@/features/payments/components/PaymentsView';
-import { MenuManagementView } from '@/features/menu/components/MenuManagementView';
-import { RecipesView } from '@/features/recipes/components/RecipesView';
-import { InventoryView } from '@/features/inventory/components/InventoryView';
-import { PurchasesView } from '@/features/purchases/components/PurchasesView';
-import { SuppliersView } from '@/features/suppliers/components/SuppliersView';
-import { CustomersView } from '@/features/customers/components/CustomersView';
-import { ReportsDashboard } from '@/features/reports/components/ReportsDashboard';
-import { AnalyticsDashboard } from '@/features/analytics/components/AnalyticsDashboard';
-import { AuditLogView } from '@/features/audit/components/AuditLogView';
-import { StaffDashboard } from '@/features/staff/components/StaffDashboard';
-import { SettingsDashboard } from '@/features/settings/components/SettingsDashboard';
+import { OrderView } from '@/features/pos/components/OrderView';
+
+// Lazy-loaded routes for optimal bundle performance
+const OrdersManagementView = lazy(() => import('@/features/orders/components/OrdersManagementView').then(m => ({ default: m.OrdersManagementView })));
+const KitchenDisplayView = lazy(() => import('@/features/kitchen/components/KitchenDisplayView').then(m => ({ default: m.KitchenDisplayView })));
+const BillingView = lazy(() => import('@/features/billing/components/BillingView').then(m => ({ default: m.BillingView })));
+const PaymentsView = lazy(() => import('@/features/payments/components/PaymentsView').then(m => ({ default: m.PaymentsView })));
+const MenuManagementView = lazy(() => import('@/features/menu/components/MenuManagementView').then(m => ({ default: m.MenuManagementView })));
+const RecipesView = lazy(() => import('@/features/recipes/components/RecipesView').then(m => ({ default: m.RecipesView })));
+const InventoryView = lazy(() => import('@/features/inventory/components/InventoryView').then(m => ({ default: m.InventoryView })));
+const PurchasesView = lazy(() => import('@/features/purchases/components/PurchasesView').then(m => ({ default: m.PurchasesView })));
+const SuppliersView = lazy(() => import('@/features/suppliers/components/SuppliersView').then(m => ({ default: m.SuppliersView })));
+const CustomersView = lazy(() => import('@/features/customers/components/CustomersView').then(m => ({ default: m.CustomersView })));
+const ReportsDashboard = lazy(() => import('@/features/reports/components/ReportsDashboard').then(m => ({ default: m.ReportsDashboard })));
+const AnalyticsDashboard = lazy(() => import('@/features/analytics/components/AnalyticsDashboard').then(m => ({ default: m.AnalyticsDashboard })));
+const AuditLogView = lazy(() => import('@/features/audit/components/AuditLogView').then(m => ({ default: m.AuditLogView })));
+const StaffDashboard = lazy(() => import('@/features/staff/components/StaffDashboard').then(m => ({ default: m.StaffDashboard })));
+const SettingsDashboard = lazy(() => import('@/features/settings/components/SettingsDashboard').then(m => ({ default: m.SettingsDashboard })));
+
+function RouteLoader() {
+  return (
+    <div className="flex items-center justify-center p-12 min-h-[300px]">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500"></div>
+    </div>
+  );
+}
 
 // Shell layout wrapper that loads settings and handles auth protection
 function ShellContainer({ children }: { children: React.ReactNode }) {
@@ -48,7 +58,9 @@ function ShellContainer({ children }: { children: React.ReactNode }) {
 
   return (
     <PosShellLayout initialUser={user} initialProfile={profile} settings={settings}>
-      {children}
+      <Suspense fallback={<RouteLoader />}>
+        {children}
+      </Suspense>
     </PosShellLayout>
   );
 }
