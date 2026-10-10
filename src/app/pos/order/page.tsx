@@ -1,8 +1,7 @@
-import { redirect } from 'next/navigation';
+import { redirect, Link } from '@/lib/navigation';
 import { getServerTablesWithActiveSessions } from '@/services/tables/serverTableService';
 import { getServerMenuCategories, getServerMenuItems } from '@/services/menu/serverMenuService';
 import { OrderView } from '@/features/pos/components/OrderView';
-import Link from 'next/link';
 import { UtensilsCrossed, AlertCircle, ArrowLeft } from 'lucide-react';
 
 export const metadata = {

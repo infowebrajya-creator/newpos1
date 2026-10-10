@@ -1,19 +1,22 @@
 import { createClient } from '@/lib/supabase/server';
-import { cookies } from 'next/headers';
 import { AuthUser, UserProfile } from '@/types';
 import {
-  isDevBypassAllowed,
   TEST_COOKIE_NAME,
   TEST_AUTH_USER,
   TEST_USER_PROFILE,
 } from './testAuthHelper';
 
+function getCookieValue(name: string): string | null {
+  if (typeof document === 'undefined') return null;
+  const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
+  return match ? match[2] : null;
+}
+
 /**
- * Get the currently authenticated user from Supabase Auth or Dev Bypass (Server Side)
+ * Get the currently authenticated user from Supabase Auth or Dev Bypass
  */
 export async function getServerCurrentUser(): Promise<AuthUser | null> {
-  const cookieStore = await cookies();
-  if (cookieStore.get(TEST_COOKIE_NAME)?.value === 'owner') {
+  if (getCookieValue(TEST_COOKIE_NAME) === 'owner') {
     return TEST_AUTH_USER;
   }
 
@@ -24,7 +27,7 @@ export async function getServerCurrentUser(): Promise<AuthUser | null> {
   } = await supabase.auth.getUser();
 
   if (error || !user) {
-    if (cookieStore.get(TEST_COOKIE_NAME)?.value === 'owner') {
+    if (getCookieValue(TEST_COOKIE_NAME) === 'owner') {
       return TEST_AUTH_USER;
     }
     return null;
@@ -42,17 +45,16 @@ export async function getServerCurrentUser(): Promise<AuthUser | null> {
 }
 
 /**
- * Get profile of the currently authenticated user from public.users or Dev Bypass (Server Side)
+ * Get profile of the currently authenticated user from public.users or Dev Bypass
  */
 export async function getServerCurrentUserProfile(): Promise<UserProfile | null> {
-  const cookieStore = await cookies();
-  if (cookieStore.get(TEST_COOKIE_NAME)?.value === 'owner') {
+  if (getCookieValue(TEST_COOKIE_NAME) === 'owner') {
     return TEST_USER_PROFILE;
   }
 
   const user = await getServerCurrentUser();
   if (!user) {
-    if (cookieStore.get(TEST_COOKIE_NAME)?.value === 'owner') {
+    if (getCookieValue(TEST_COOKIE_NAME) === 'owner') {
       return TEST_USER_PROFILE;
     }
     return null;
@@ -66,7 +68,7 @@ export async function getServerCurrentUserProfile(): Promise<UserProfile | null>
     .single();
 
   if (error || !data) {
-    if (user.email === 'admin@gmail.com' || cookieStore.get(TEST_COOKIE_NAME)?.value === 'owner') {
+    if (user.email === 'admin@gmail.com' || getCookieValue(TEST_COOKIE_NAME) === 'owner') {
       return TEST_USER_PROFILE;
     }
     return null;

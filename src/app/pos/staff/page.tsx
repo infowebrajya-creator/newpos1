@@ -1,9 +1,8 @@
-import { Metadata } from 'next';
 import { StaffDashboard } from '@/features/staff/components/StaffDashboard';
 
-export const metadata: Metadata = {
-  title: 'Staff & Team Management | WebRajya POS',
-  description: 'Operational staff directory, role assignments, permission matrices, and security audit logs for WebRajya POS',
+export const metadata = {
+  title: 'Staff & Role Permissions | WebRajya POS',
+  description: 'Manage staff profiles, assign roles (Owner, Manager, Cashier, Waiter, Kitchen), and configure permissions matrix for WebRajya POS',
 };
 
 export default function StaffPage() {

@@ -1,9 +1,8 @@
-import { Metadata } from 'next';
 import { CustomersView } from '@/features/customers/components/CustomersView';
 
-export const metadata: Metadata = {
-  title: 'Customers | WebRajya POS',
-  description: 'Manage customer profiles and guest history for WebRajya POS',
+export const metadata = {
+  title: 'Customer Directory & CRM | WebRajya POS',
+  description: 'Manage restaurant customers, track visit history, spend totals, and contact details for WebRajya POS',
 };
 
 export default function CustomersPage() {

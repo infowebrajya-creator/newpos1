@@ -1,4 +1,4 @@
-import { redirect } from 'next/navigation';
+import { redirect } from '@/lib/navigation';
 import { getServerCurrentUser } from '@/services/auth/serverAuthService';
 
 export default async function RootPage() {

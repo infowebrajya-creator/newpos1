@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import { Link } from '@/lib/navigation';
 import { getServerCurrentUserProfile } from '@/services/auth/serverAuthService';
 import { getServerRestaurantSettings } from '@/services/settings/serverSettingsService';
 import { getServerTablesWithActiveSessions, getServerTableStats } from '@/services/tables/serverTableService';

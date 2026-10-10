@@ -27,19 +27,7 @@
   },
   "include": ["src"],
   "exclude": [
-    "node_modules",
-    "src/app/api/**/*",
-    "src/app/page.tsx",
-    "src/app/layout.tsx",
-    "src/app/pos/layout.tsx",
-    "src/app/pos/page.tsx",
-    "src/app/pos/**/page.tsx",
-    "src/lib/supabase/server.ts",
-    "src/lib/supabase/middleware.ts",
-    "src/utils/supabase/server.ts",
-    "src/utils/supabase/middleware.ts",
-    "src/middleware.ts",
-    "src/services/**/server*.ts"
+    "node_modules"
   ],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

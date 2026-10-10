@@ -1,4 +1,4 @@
-import { redirect } from 'next/navigation';
+import { redirect } from '@/lib/navigation';
 import { getServerCurrentUser, getServerCurrentUserProfile } from '@/services/auth/serverAuthService';
 import { getServerRestaurantSettings } from '@/services/settings/serverSettingsService';
 import { PosShellLayout } from '@/components/layout/PosShellLayout';

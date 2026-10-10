@@ -1,14 +1,10 @@
-import { Metadata } from 'next';
-import { getServerPayments } from '@/services/payments/serverPaymentService';
 import { PaymentsView } from '@/features/payments/components/PaymentsView';
 
-export const metadata: Metadata = {
-  title: 'Payments & Settlement - WebRajya POS',
-  description: 'Track collected restaurant payments, settlement methods, split transactions, and receipt reprinting',
+export const metadata = {
+  title: 'Payment Transactions & Settlements | WebRajya POS',
+  description: 'View all paid bills, filter by payment method, print transaction receipts, and track split payments for WebRajya POS',
 };
 
-export default async function PaymentsPage() {
-  const { payments, summary } = await getServerPayments();
-
-  return <PaymentsView initialPayments={payments} initialSummary={summary} />;
+export default function PaymentsPage() {
+  return <PaymentsView />;
 }
