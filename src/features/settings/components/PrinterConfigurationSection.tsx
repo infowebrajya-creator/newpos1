@@ -21,16 +21,6 @@ export function PrinterConfigurationSection({ canEdit }: PrinterConfigurationSec
 
   useEffect(() => {
     setConfig(getPrinterConfig());
-
-    if (typeof window !== 'undefined' && window.electronAPI) {
-      window.electronAPI.getPrinters().then((printers) => {
-        if (Array.isArray(printers)) {
-          setSystemPrinters(printers);
-        }
-      }).catch((err) => {
-        console.error('Failed to query Electron printers:', err);
-      });
-    }
   }, []);
 
   const handleSave = () => {
@@ -238,13 +228,7 @@ export function PrinterConfigurationSection({ canEdit }: PrinterConfigurationSec
           </div>
         </div>
 
-        {/* Electron Native Mode Banner */}
-        {typeof window !== 'undefined' && window.electronAPI && (
-          <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-lg text-indigo-900 text-xs font-bold flex items-center space-x-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping shrink-0"></span>
-            <span>⚡ Native Electron Desktop Mode Active — Direct Silent Thermal & KOT Printing Enabled</span>
-          </div>
-        )}
+
 
         {/* Printer Names */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

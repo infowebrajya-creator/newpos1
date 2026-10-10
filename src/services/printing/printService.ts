@@ -6,7 +6,6 @@ import { buildBillPrintDocument, buildKotPrintDocument } from './printDocumentSe
 import { createClient } from '@/lib/supabase/client';
 
 import { UniversalPrinterAdapter } from './universalPrinterAdapter';
-import { ElectronPrinterAdapter } from './electronPrinterAdapter';
 
 const PRINTER_CONFIG_KEY = 'webrajya_pos_printer_config';
 
@@ -56,10 +55,6 @@ export function savePrinterConfig(config: PrinterConfig): void {
  * Instantiate appropriate PrinterAdapter
  */
 export function getPrinterAdapter(provider?: PrinterProviderType): PrinterAdapter {
-  if (typeof window !== 'undefined' && window.electronAPI) {
-    return new ElectronPrinterAdapter();
-  }
-
   const activeProvider = provider || getPrinterConfig().provider;
   if (activeProvider === 'local_service') {
     return new LocalPrintServiceAdapter();
