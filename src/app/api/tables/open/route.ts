@@ -1,12 +1,11 @@
 import { createClient } from '@/lib/supabase/server';
-import { NextResponse } from 'next/server';
 
 export async function POST(req: Request) {
   try {
     const { tableId, guestCount = 2 } = await req.json();
 
     if (!tableId) {
-      return NextResponse.json({ error: 'tableId is required' }, { status: 400 });
+      return Response.json({ error: 'tableId is required' }, { status: 400 });
     }
 
     const supabase = await createClient();
@@ -30,7 +29,7 @@ export async function POST(req: Request) {
     }
 
     if (!targetTableId) {
-      return NextResponse.json({ error: 'Restaurant table not found' }, { status: 404 });
+      return Response.json({ error: 'Restaurant table not found' }, { status: 404 });
     }
 
     // 1. Check for existing active session for this table
@@ -49,7 +48,7 @@ export async function POST(req: Request) {
         .update({ status: 'occupied', updated_at: new Date().toISOString() })
         .eq('id', targetTableId);
 
-      return NextResponse.json({ success: true, sessionId: existingActive.id, tableId: targetTableId });
+      return Response.json({ success: true, sessionId: existingActive.id, tableId: targetTableId });
     }
 
     // 2. Try RPC procedure with resolved UUID
@@ -59,7 +58,7 @@ export async function POST(req: Request) {
     });
 
     if (!rpcErr && rpcData) {
-      return NextResponse.json({ success: true, sessionId: rpcData, tableId: targetTableId });
+      return Response.json({ success: true, sessionId: rpcData, tableId: targetTableId });
     }
 
     // 3. Direct server fallback insert with resolved UUID
@@ -86,8 +85,8 @@ export async function POST(req: Request) {
       .update({ status: 'occupied', updated_at: new Date().toISOString() })
       .eq('id', targetTableId);
 
-    return NextResponse.json({ success: true, sessionId: newSessionId, tableId: targetTableId });
+    return Response.json({ success: true, sessionId: newSessionId, tableId: targetTableId });
   } catch (err: any) {
-    return NextResponse.json({ error: err?.message || 'Failed to open table' }, { status: 500 });
+    return Response.json({ error: err?.message || 'Failed to open table' }, { status: 500 });
   }
 }

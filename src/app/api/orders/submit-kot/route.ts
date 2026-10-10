@@ -1,12 +1,11 @@
 import { createClient } from '@/lib/supabase/server';
-import { NextResponse } from 'next/server';
 
 export async function POST(req: Request) {
   try {
     const { tableSessionId, cartItems = [] } = await req.json();
 
     if (!tableSessionId) {
-      return NextResponse.json({ error: 'tableSessionId is required' }, { status: 400 });
+      return Response.json({ error: 'tableSessionId is required' }, { status: 400 });
     }
 
     const supabase = await createClient();
@@ -131,13 +130,13 @@ export async function POST(req: Request) {
         .single();
 
       if (createOrderErr) {
-        return NextResponse.json({ error: createOrderErr.message }, { status: 500 });
+        return Response.json({ error: createOrderErr.message }, { status: 500 });
       }
       order = createdOrder;
     }
 
     if (!order) {
-      return NextResponse.json({ error: 'Failed to find or create order' }, { status: 500 });
+      return Response.json({ error: 'Failed to find or create order' }, { status: 500 });
     }
 
     // 2. Find next round_number
@@ -159,7 +158,7 @@ export async function POST(req: Request) {
     });
 
     if (roundErr) {
-      return NextResponse.json({ error: roundErr.message }, { status: 500 });
+      return Response.json({ error: roundErr.message }, { status: 500 });
     }
 
     // 3. Insert order items if provided
@@ -195,7 +194,7 @@ export async function POST(req: Request) {
 
       const { error: itemsErr } = await supabase.from('order_items').insert(orderItemsToInsert);
       if (itemsErr) {
-        return NextResponse.json({ error: itemsErr.message }, { status: 500 });
+        return Response.json({ error: itemsErr.message }, { status: 500 });
       }
     }
 
@@ -285,7 +284,7 @@ export async function POST(req: Request) {
       isReprint: false,
     };
 
-    return NextResponse.json({
+    return Response.json({
       success: true,
       orderId: order.id,
       roundId,
@@ -293,6 +292,6 @@ export async function POST(req: Request) {
       kotDocument,
     });
   } catch (err: any) {
-    return NextResponse.json({ error: err?.message || 'Internal server error' }, { status: 500 });
+    return Response.json({ error: err?.message || 'Internal server error' }, { status: 500 });
   }
 }

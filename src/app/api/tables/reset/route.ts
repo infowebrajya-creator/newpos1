@@ -1,12 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-export async function POST(req: NextRequest) {
+export async function POST(req: Request) {
   try {
     const { tableId } = await req.json();
 
     if (!tableId) {
-      return NextResponse.json({ error: 'Table ID is required.' }, { status: 400 });
+      return Response.json({ error: 'Table ID is required.' }, { status: 400 });
     }
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -27,12 +26,12 @@ export async function POST(req: NextRequest) {
       .eq('id', tableId);
 
     if (tableErr) {
-      return NextResponse.json({ error: tableErr.message }, { status: 500 });
+      return Response.json({ error: tableErr.message }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true, message: 'Table marked as blank (available).' });
+    return Response.json({ success: true, message: 'Table marked as blank (available).' });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Failed to reset table.';
-    return NextResponse.json({ error: msg }, { status: 500 });
+    return Response.json({ error: msg }, { status: 500 });
   }
 }
