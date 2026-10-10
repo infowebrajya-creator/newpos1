@@ -60,7 +60,7 @@ export async function buildBillPrintDocument(
     supabase.from('bills').select('*').eq('id', billId).single(),
     getRestaurantSettings(),
     supabase.from('bill_items').select('*').eq('bill_id', billId),
-    supabase.from('payments').select('*').eq('bill_id', billId).order('created_at', { ascending: true }),
+    supabase.from('payments').select('id, bill_id, payment_method, amount, created_at').eq('bill_id', billId).order('created_at', { ascending: true }),
   ]);
 
   let bill = billRes.data;

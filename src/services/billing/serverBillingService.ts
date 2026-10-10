@@ -56,7 +56,7 @@ export async function getServerDetailedBill(billId: string): Promise<DetailedBil
   const [billRes, itemsRes, paymentsRes] = await Promise.all([
     supabase.from('bills').select('*').eq('id', billId).maybeSingle(),
     supabase.from('bill_items').select('*').eq('bill_id', billId),
-    supabase.from('payments').select('*').eq('bill_id', billId).order('created_at', { ascending: true }),
+    supabase.from('payments').select('id, bill_id, payment_method, amount, created_at').eq('bill_id', billId).order('created_at', { ascending: true }),
   ]);
 
   if (billRes.error || !billRes.data) {
@@ -64,7 +64,7 @@ export async function getServerDetailedBill(billId: string): Promise<DetailedBil
   }
 
   const rawBill = billRes.data;
-  const payments = (paymentsRes.data as Payment[]) || [];
+  const payments = (paymentsRes.data as unknown as Payment[]) || [];
 
   // Resolve table session ID if not on bills table directly
   let tableSessionId = rawBill.table_session_id;
